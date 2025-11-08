@@ -28,7 +28,7 @@ DATABASE_URL=postgresql://futsalgg:${POSTGRES_PASSWORD}@postgres:5432/futsalgg?s
 
 # NextAuth Configuration
 NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-NEXTAUTH_URL=https://server.futsalgg.com
+NEXTAUTH_URL=https://futsalgg.com
 
 # Application Secrets
 APP_SECRET=${APP_SECRET}
