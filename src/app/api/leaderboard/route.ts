@@ -5,24 +5,30 @@ export async function GET() {
   try {
     // Fetch all players from the database, ordered by ELO descending
     const players = await prisma.player.findMany({
+      include: {
+        teamPlayers: {
+          include: {
+            game: true,
+          },
+        },
+      },
       orderBy: {
         elo: 'desc'
       }
     })
 
-    // Transform the data to match the LeaderboardPlayer type
-    const leaderboard = players.map(player => ({
-      id: player.id,
-      playerName: `${player.firstName} ${player.lastName.charAt(0)}.`,
-      currentElo: player.elo,
-      W: player.wins,
-      T: player.draws,
-      L: player.losses,
-      gamesPlayed: player.gamesPlayed,
-      goals: player.totalGoals,
-      eloChangeLastWeek: 0, // TODO: Calculate this from recent games
-      lastGameDate: null, // TODO: Fetch from most recent GamePlayer entry
-    }))
+    // Transform the data to match the expected format
+    const leaderboard = players.map(player => {
+      const games = player.teamPlayers.map((tp) => tp.game);
+      const gamesPlayed = new Set(games.map((g) => g.id)).size;
+
+      return {
+        id: player.id,
+        playerName: `${player.name} ${player.lastName.charAt(0)}.`,
+        currentElo: player.elo,
+        gamesPlayed,
+      }
+    })
 
     return NextResponse.json(leaderboard)
   } catch (error) {
