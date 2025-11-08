@@ -121,7 +121,7 @@ jobs:
       - name: Health Check
         run: |
           sleep 10
-          curl -f https://server.futsalgg.com/api/health || exit 1
+          curl -f https://futsalgg.com/api/health || exit 1
 
       - name: Notify on success
         if: success()

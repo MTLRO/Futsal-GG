@@ -10,7 +10,7 @@ echo "SSL Certificate Setup"
 echo "========================================"
 echo ""
 
-DOMAIN="server.futsalgg.com"
+DOMAIN="futsalgg.com"
 EMAIL="admin@futsalgg.com"  # Change this to your email
 
 # Check if running as root

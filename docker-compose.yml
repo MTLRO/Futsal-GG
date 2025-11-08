@@ -35,7 +35,7 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER:-futsalgg}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-futsalgg}?schema=public&connection_limit=10&pool_timeout=20
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - NEXTAUTH_URL=${NEXTAUTH_URL:-https://server.futsalgg.com}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-https://futsalgg.com}
     networks:
       - futsal-network
     command: sh -c "npx prisma migrate deploy && npm start"
