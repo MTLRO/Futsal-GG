@@ -30,7 +30,7 @@ export function AddGameModal() {
   const [homeTeam, setHomeTeam] = useState<"A" | "B" | "C" | null>(null)
   const [awayTeam, setAwayTeam] = useState<"A" | "B" | "C" | null>(null)
   const [startDateTime, setStartDateTime] = useState("")
-  const [duration, setDuration] = useState("")
+  const [duration, setDuration] = useState("6")
   const [homeTeamGoals, setHomeTeamGoals] = useState<Record<number, number>>({})
   const [awayTeamGoals, setAwayTeamGoals] = useState<Record<number, number>>({})
 
@@ -53,6 +53,20 @@ export function AddGameModal() {
     },
     enabled: open,
   })
+
+  // Set current date/time when modal opens
+  useEffect(() => {
+    if (open && !startDateTime) {
+      const now = new Date()
+      // Format for datetime-local input: YYYY-MM-DDTHH:MM
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      const day = String(now.getDate()).padStart(2, '0')
+      const hours = String(now.getHours()).padStart(2, '0')
+      const minutes = String(now.getMinutes()).padStart(2, '0')
+      setStartDateTime(`${year}-${month}-${day}T${hours}:${minutes}`)
+    }
+  }, [open, startDateTime])
 
   // Initialize goals for all players
   useEffect(() => {
@@ -254,7 +268,7 @@ export function AddGameModal() {
                 type="number"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
-                placeholder="7"
+                placeholder="6"
                 min="1"
               />
             </div>
