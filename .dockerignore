@@ -54,3 +54,8 @@ scripts/
 
 # VPS config (sensitive)
 vps.config
+
+# Test files
+test-*.ts
+*.test.ts
+*.spec.ts

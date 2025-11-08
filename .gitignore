@@ -50,6 +50,11 @@ backups/
 logs/
 *.log
 
+# Test files (optional - uncomment to exclude from git)
+# test-*.ts
+# *.test.ts
+# *.spec.ts
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
