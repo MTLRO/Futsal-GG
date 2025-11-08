@@ -1,31 +1,56 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
-import { useRouter } from "next/navigation"
-import { LeaderboardTable } from "@/components/leaderboard-table"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { ScoreboardTable } from "@/components/scoreboard-table"
+import { AddPlayerModal } from "@/components/add-player-modal"
+import { ChangeTeamsModal } from "@/components/change-teams-modal"
+import { AddGameModal } from "@/components/add-game-modal"
+import { GameHistoryModal } from "@/components/game-history-modal"
 import { Button } from "@/components/ui/button"
-import { Shield } from "lucide-react"
+import { RefreshCw } from "lucide-react"
 
+interface ScoreboardEntry {
+  playerId: number
+  name: string
+  lastName: string
+  gamesPlayed: number
+  goalsScored: number
+  elo: number
+  last5GamesDeltaELO: number
+}
 
-const fetchLeaderboard = async (): Promise<any[]> => {
-  const response = await fetch("/api/leaderboard")
+const fetchScoreboard = async (): Promise<ScoreboardEntry[]> => {
+  const response = await fetch("/api/scoreboard")
   if (!response.ok) {
-    throw new Error("Failed to fetch leaderboard")
+    throw new Error("Failed to fetch scoreboard")
   }
-  return response.json()
+  const data = await response.json()
+  return data.scoreboard
 }
 
 export default function Home() {
-  const router = useRouter()
-
-  const { data: leaderboard = [], isLoading: loading, error } = useQuery({
-    queryKey: ["leaderboard"],
-    queryFn: fetchLeaderboard,
+  const queryClient = useQueryClient()
+  const { data: scoreboard = [], isLoading: loading, error, refetch } = useQuery({
+    queryKey: ["scoreboard"],
+    queryFn: fetchScoreboard,
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
   })
 
-  const handlePlayerClick = (playerId: number) => {
-    router.push(`/player/${playerId}`)
-  }
+  const recomputeEloMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/elo/compute", {
+        method: "POST",
+      })
+      if (!response.ok) {
+        throw new Error("Failed to recompute ELO")
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scoreboard"] })
+      refetch()
+    },
+  })
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-8">
@@ -35,14 +60,20 @@ export default function Home() {
           <h1 className="text-4xl sm:text-5xl font-bold text-primary mb-2">
             Futsal-GG
           </h1>
-          <p className="text-muted-foreground">Leaderboard (last updated: ...)</p>
+          <p className="text-muted-foreground">Scoreboard</p>
         </header>
 
-        {/* Leaderboard */}
+        {/* Scoreboard Header with Game History Button */}
+        <div className="mb-4 flex justify-between items-center">
+          <h2 className="text-2xl font-semibold">Scoreboard</h2>
+          <GameHistoryModal />
+        </div>
+
+        {/* Scoreboard */}
         <main className="mb-8">
           {loading ? (
             <div className="flex justify-center items-center py-20">
-              <div className="text-muted-foreground">Loading leaderboard...</div>
+              <div className="text-muted-foreground">Loading scoreboard...</div>
             </div>
           ) : error ? (
             <div className="flex justify-center items-center py-20">
@@ -51,21 +82,24 @@ export default function Home() {
               </div>
             </div>
           ) : (
-            <LeaderboardTable data={leaderboard} onPlayerClick={handlePlayerClick} />
+            <ScoreboardTable data={scoreboard} />
           )}
         </main>
 
-        {/* Admin Button */}
-        <footer className="flex justify-center">
+        {/* Action Buttons */}
+        <div className="flex justify-center gap-4 flex-wrap">
+          <AddPlayerModal onPlayerAdded={() => refetch()} />
+          <ChangeTeamsModal />
+          <AddGameModal />
           <Button
-            size="lg"
-            onClick={() => router.push("/game-master")}
-            className="gap-2 min-h-[48px]"
+            onClick={() => recomputeEloMutation.mutate()}
+            disabled={recomputeEloMutation.isPending}
+            variant="outline"
           >
-            <Shield className="h-5 w-5" />
-            Game Master
+            <RefreshCw className="mr-2 h-4 w-4" />
+            {recomputeEloMutation.isPending ? "Computing..." : "Recompute ELO"}
           </Button>
-        </footer>
+        </div>
       </div>
     </div>
   )

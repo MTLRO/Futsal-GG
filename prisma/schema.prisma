@@ -8,64 +8,44 @@ datasource db {
 }
 
 model Player {
-  id          Int          @id @default(autoincrement())
-  firstName   String
-  lastName    String
-  elo         Int          @default(1000)
-  totalGoals  Int          @default(0)
-  wins        Int          @default(0)
-  draws       Int          @default(0)
-  losses      Int          @default(0)
-  gamesPlayed Int          @default(0)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @default(now()) @updatedAt
-  available   Boolean      @default(false)
-  gamePlayers GamePlayer[]
-
-  @@index([elo])
-  @@index([lastName, firstName])
+  id           Int           @id @default(autoincrement())
+  name         String
+  lastName     String
+  elo          Int           @default(1500)
+  teamPlayers  TeamPlayer[]
+  @@index([lastName, name])
 }
 
-model Session {
-  id                Int           @id @default(autoincrement())
-  date              DateTime      @default(now())
-  team1PlayerIds    Int[]
-  team2PlayerIds    Int[]
-  team3PlayerIds    Int[]
-  status            SessionStatus @default(SCHEDULED)
-  createdAt         DateTime      @default(now())
-  completedAt       DateTime?
-  gameLengthMinutes Int           @default(7)
-  games             Game[]
+model TeamPlayer {
+  id         Int   @id @default(autoincrement())
+  side       Side
+  playerId   Int
+  goals      Int   @default(0)
+  deltaELO   Int   @default(0)
+  gameInARow Int   @default(1)  // Number of games in a row this player played (for fatigue tracking)
+  player     Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  gameId     Int
+  game       Game  @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
-  @@index([date])
-  @@index([status])
+  @@index([playerId])
+  @@index([gameId])
 }
 
 model Game {
-  id              Int
-  sessionId       Int
-  homeTeamNumber  Team
-  awayTeamNumber  Team
-  durationSeconds Int?
-  status          GameStatus   @default(IN_PROGRESS)
-  startedAt       DateTime     @default(now())
-  session         Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  gamePlayers     GamePlayer[]
+  id                    Int          @id @default(autoincrement())
+  startDateTime         DateTime
+  timePlayed            Int?
+  homeTeamAverageElo    Int?         // Average ELO of HOME team at game time
+  awayTeamAverageElo    Int?         // Average ELO of AWAY team at game time
+  teamPlayers           TeamPlayer[]
 
-  @@id([sessionId, id])
-  @@index([status])
+  @@index([startDateTime])
 }
 
-model GamePlayer {
-  sessionId  Int
-  gameId     Int
-  playerId   Int
-  goals      Int    @default(0)
-  eloChange  Int?
-  player     Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  game       Game   @relation(fields: [sessionId, gameId], references: [sessionId, id], onDelete: Cascade)
-  @@id([sessionId, gameId, playerId])
+model TeamComposition {
+  id        Int    @id @default(autoincrement())
+  team      Team   @unique
+  playerIds Int[]
 }
 
 model GameMaster {
@@ -75,20 +55,13 @@ model GameMaster {
   updatedAt    DateTime @updatedAt
 }
 
-enum SessionStatus {
-  SCHEDULED
-  IN_PROGRESS
-  COMPLETED
-}
-
 enum Team {
-  TEAM_1
-  TEAM_2
-  TEAM_3
+  A
+  B
+  C
 }
 
-enum GameStatus {
-  NOT_STARTED
-  IN_PROGRESS
-  COMPLETED
+enum Side {
+  HOME
+  AWAY
 }

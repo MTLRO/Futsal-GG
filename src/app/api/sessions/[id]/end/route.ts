@@ -1,1 +1,0 @@
-// ends the session. Make sure no active games are currently in play.

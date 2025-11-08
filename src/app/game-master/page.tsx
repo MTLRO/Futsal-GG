@@ -1,38 +1,41 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 
-type Session = {
+interface Player {
   id: number
-  date: string
-  status: string
-  gameLengthMinutes: number
-  team1PlayerIds: number[]
-  team2PlayerIds: number[]
-  team3PlayerIds: number[]
-  games: any[]
+  name: string
+  lastName: string
+  elo: number
+}
+
+interface Game {
+  id: number
+  timePlayed: number | null
+  startDateTime: string
+  teamPlayers: Array<{
+    id: number
+    side: string
+    playerId: number
+    goals: number
+    deltaELO: number
+  }>
 }
 
 export default function GameMasterPage() {
-  const router = useRouter()
   const queryClient = useQueryClient()
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
-  const [isNewSessionOpen, setIsNewSessionOpen] = useState(false)
-  const [newSessionDate, setNewSessionDate] = useState("")
-  const [newSessionGameLength, setNewSessionGameLength] = useState("7")
+  const [passwordError, setPasswordError] = useState("")
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
+    setPasswordError("")
 
     try {
       const response = await fetch("/api/auth/verify", {
@@ -45,46 +48,68 @@ export default function GameMasterPage() {
         setIsAuthenticated(true)
         setPassword("")
       } else {
-        setError("Invalid password")
+        setPasswordError("Invalid password")
       }
-    } catch (err) {
-      setError("Failed to verify password")
+    } catch {
+      setPasswordError("Failed to verify password")
     }
   }
 
-  const { data: sessions = [], isLoading } = useQuery<Session[]>({
-    queryKey: ["sessions"],
+  const { data: currentGame } = useQuery<{ game: Game | null }>({
+    queryKey: ["currentGame"],
     queryFn: async () => {
-      const res = await fetch("/api/sessions")
-      if (!res.ok) throw new Error("Failed to fetch sessions")
+      const res = await fetch("/api/games")
+      if (!res.ok) throw new Error("Failed to fetch current game")
       return res.json()
+    },
+    enabled: isAuthenticated,
+    refetchInterval: 2000,
+  })
+
+  const { data: allPlayers = [] } = useQuery<Player[]>({
+    queryKey: ["players"],
+    queryFn: async () => {
+      const res = await fetch("/api/players")
+      if (!res.ok) throw new Error("Failed to fetch players")
+      const data = await res.json()
+      return data.players || []
     },
     enabled: isAuthenticated,
   })
 
-  const createSessionMutation = useMutation({
+  const startGameMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/sessions", {
+      const res = await fetch("/api/games", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: newSessionDate,
-          gameLengthMinutes: parseInt(newSessionGameLength),
-          autoBalance: true,
-        }),
+        body: JSON.stringify({}),
       })
-      if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || "Failed to create session")
-      }
+      if (!res.ok) throw new Error("Failed to start game")
       return res.json()
     },
-    onSuccess: (session) => {
-      queryClient.invalidateQueries({ queryKey: ["sessions"] })
-      setIsNewSessionOpen(false)
-      setNewSessionDate("")
-      setNewSessionGameLength("7")
-      router.push(`/game-master/session/${session.id}`)
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["currentGame"] })
+    },
+  })
+
+  const endGameMutation = useMutation({
+    mutationFn: async (gameId: number) => {
+      const res = await fetch(`/api/games/${gameId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          timePlayed: Math.floor(
+            (new Date().getTime() -
+              new Date(currentGame?.game?.startDateTime || 0).getTime()) /
+              1000
+          ),
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to end game")
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["currentGame"] })
     },
   })
 
@@ -98,18 +123,13 @@ export default function GameMasterPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handlePasswordSubmit} className="space-y-4">
-              <div>
-                <Input
-                  type="password"
-                  placeholder="Enter password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full"
-                />
-              </div>
-              {error && (
-                <div className="text-sm text-red-600">{error}</div>
-              )}
+              <Input
+                type="password"
+                placeholder="Enter password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              {passwordError && <div className="text-sm text-red-600">{passwordError}</div>}
               <Button type="submit" className="w-full">
                 Unlock
               </Button>
@@ -123,103 +143,63 @@ export default function GameMasterPage() {
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Game Master</h1>
-          <Dialog open={isNewSessionOpen} onOpenChange={setIsNewSessionOpen}>
-            <DialogTrigger asChild>
-              <Button>New Session</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Session</DialogTitle>
-                <DialogDescription>
-                  Teams will be automatically balanced based on player ELO
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div>
-                  <label className="text-sm font-medium">Date & Time</label>
-                  <Input
-                    type="datetime-local"
-                    value={newSessionDate}
-                    onChange={(e) => setNewSessionDate(e.target.value)}
-                    className="w-full mt-1"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Game Length (minutes)</label>
-                  <Input
-                    type="number"
-                    value={newSessionGameLength}
-                    onChange={(e) => setNewSessionGameLength(e.target.value)}
-                    min="1"
-                    className="w-full mt-1"
-                  />
-                </div>
+        <h1 className="text-3xl font-bold mb-6">Game Master</h1>
+
+        {/* Current Game */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Current Game</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {currentGame?.game ? (
+              <div className="space-y-4">
+                <p className="text-muted-foreground">Game in progress</p>
                 <Button
-                  onClick={() => createSessionMutation.mutate()}
-                  disabled={!newSessionDate || createSessionMutation.isPending}
-                  className="w-full"
+                  onClick={() => endGameMutation.mutate(currentGame.game!.id)}
+                  disabled={endGameMutation.isPending}
+                  variant="secondary"
                 >
-                  {createSessionMutation.isPending ? "Creating..." : "Create Session"}
+                  {endGameMutation.isPending ? "Ending..." : "End Game"}
                 </Button>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-muted-foreground">No active game</p>
+                <Button
+                  onClick={() => startGameMutation.mutate()}
+                  disabled={startGameMutation.isPending}
+                >
+                  {startGameMutation.isPending ? "Starting..." : "Start Live Game"}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-        {isLoading ? (
-          <div className="text-center py-12">Loading sessions...</div>
-        ) : sessions.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center text-muted-foreground">
-              No sessions yet. Create your first session to get started.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {sessions.map((session) => (
-              <Card
-                key={session.id}
-                className="cursor-pointer hover:bg-accent transition-colors"
-                onClick={() => router.push(`/game-master/session/${session.id}`)}
-              >
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>
-                        {new Date(session.date).toLocaleDateString()} at{" "}
-                        {new Date(session.date).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </CardTitle>
-                      <CardDescription>
-                        {session.gameLengthMinutes} minute games
-                      </CardDescription>
+        {/* Players */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Players ({allPlayers.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {allPlayers.length === 0 ? (
+              <p className="text-muted-foreground">No players yet. Add players from the home page.</p>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {allPlayers
+                  .sort((a, b) => b.elo - a.elo)
+                  .map((player) => (
+                    <div key={player.id} className="flex justify-between items-center p-2 border rounded">
+                      <span>
+                        {player.name}
+                      </span>
+                      <Badge>{player.elo} ELO</Badge>
                     </div>
-                    <Badge
-                      variant={
-                        session.status === "COMPLETED"
-                          ? "default"
-                          : session.status === "IN_PROGRESS"
-                          ? "destructive"
-                          : "secondary"
-                      }
-                    >
-                      {session.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-muted-foreground">
-                    {session.games.length} games played
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                  ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
