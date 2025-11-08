@@ -42,7 +42,8 @@
       "Bash(npx tsx:*)",
       "Bash(curl:*)",
       "Bash(git add:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(docker compose:*)"
     ],
     "deny": [],
     "ask": []
