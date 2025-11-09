@@ -35,6 +35,7 @@ model Game {
   id                    Int          @id @default(autoincrement())
   startDateTime         DateTime
   timePlayed            Int?
+  videoLink             String?
   homeTeamAverageElo    Int?         // Average ELO of HOME team at game time
   awayTeamAverageElo    Int?         // Average ELO of AWAY team at game time
   teamPlayers           TeamPlayer[]

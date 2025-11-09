@@ -9,6 +9,7 @@ interface GameHistoryEntry {
   team2Players: Array<{ name: string; lastName: string; elo: number; deltaELO: number; goals: number; gameInARow: number }>;
   team2AverageElo: number;
   timePlayed: number | null;
+  videoLink: string | null;
   team1Score: number;
   team2Score: number;
 }
@@ -125,6 +126,7 @@ export async function GET() {
         team2Players: awayTeamPlayers,
         team2AverageElo: awayAverageElo,
         timePlayed: game.timePlayed,
+        videoLink: game.videoLink,
         team1Score: homeScore,
         team2Score: awayScore,
       };
