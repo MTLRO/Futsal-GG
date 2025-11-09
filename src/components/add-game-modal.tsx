@@ -198,16 +198,16 @@ export function AddGameModal() {
           Add Game
         </Button>
       </DialogTrigger>
-      <DialogContent className="!max-w-none w-[95vw] max-w-[95vw] h-[95vh] overflow-y-auto">
+      <DialogContent className="!max-w-none w-[95vw] max-w-[95vw] h-[95vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>Record a Game</DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">Record a Game</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Team Selection */}
           <div className="space-y-3">
-            <h3 className="font-bold">Select Teams</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <h3 className="font-bold text-base sm:text-lg">Select Teams</h3>
+            <div className="flex flex-col gap-4">
               <div>
                 <label className="text-sm font-medium block mb-2">Home Team</label>
                 <div className="flex gap-2">
@@ -216,7 +216,7 @@ export function AddGameModal() {
                       key={team}
                       onClick={() => setHomeTeam(team as "A" | "B" | "C")}
                       variant={homeTeam === team ? "default" : "outline"}
-                      className="flex-1"
+                      className="flex-1 min-h-[44px]"
                     >
                       Team {team}
                     </Button>
@@ -231,7 +231,7 @@ export function AddGameModal() {
                       key={team}
                       onClick={() => setAwayTeam(team as "A" | "B" | "C")}
                       variant={awayTeam === team ? "default" : "outline"}
-                      className="flex-1"
+                      className="flex-1 min-h-[44px]"
                     >
                       Team {team}
                     </Button>
@@ -246,20 +246,21 @@ export function AddGameModal() {
 
           {/* Teams Grid */}
           {homeTeam && awayTeam && homeTeam !== awayTeam && (
-            <div className="grid grid-cols-2 gap-6">
+            <div className="flex flex-col gap-4 sm:gap-6">
               <TeamColumn teamLetter={homeTeam} side="Home" isHome={true} />
               <TeamColumn teamLetter={awayTeam} side="Away" isHome={false} />
             </div>
           )}
 
           {/* Date and Duration */}
-          <div className="grid grid-cols-2 gap-4 bg-secondary/30 p-4 rounded-lg">
+          <div className="flex flex-col gap-4 bg-secondary/30 p-3 sm:p-4 rounded-lg">
             <div>
               <label className="text-sm font-medium block mb-2">Start Date & Time</label>
               <Input
                 type="datetime-local"
                 value={startDateTime}
                 onChange={(e) => setStartDateTime(e.target.value)}
+                className="min-h-[44px]"
               />
             </div>
             <div>
@@ -270,6 +271,7 @@ export function AddGameModal() {
                 onChange={(e) => setDuration(e.target.value)}
                 placeholder="6"
                 min="1"
+                className="min-h-[44px]"
               />
             </div>
           </div>

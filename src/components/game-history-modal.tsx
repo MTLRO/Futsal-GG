@@ -38,6 +38,7 @@ interface GameHistoryEntry {
   team2Players: Player[]
   team2AverageElo: number
   timePlayed: number | null
+  videoLink: string | null
   team1Score: number
   team2Score: number
 }
@@ -64,7 +65,7 @@ export function GameHistoryModal() {
     const date = new Date(dateTimeString)
     const dateStr = date.toLocaleDateString()
     const timeStr = date.toLocaleTimeString()
-    const timePlayedStr = timePlayed ? `${timePlayed} minutes` : "-"
+    const timePlayedStr = timePlayed ? `${Math.floor(timePlayed / 60)} minutes` : "-"
     return { dateStr, timeStr, timePlayedStr }
   }
 
@@ -134,6 +135,18 @@ export function GameHistoryModal() {
                         <div>{dateStr}</div>
                         <div>{timeStr}</div>
                         <div className="text-gray-500 italic text-sm">{timePlayedStr}</div>
+                        {game.videoLink && (
+                          <div className="mt-1">
+                            <a
+                              href={game.videoLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:text-blue-800 underline"
+                            >
+                              📹 Video
+                            </a>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">

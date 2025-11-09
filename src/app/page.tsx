@@ -58,7 +58,7 @@ export default function Home() {
         {/* Header */}
         <header className="mb-8 text-center">
           <h1 className="text-4xl sm:text-5xl font-bold text-primary mb-2">
-            Futsal-GG
+            Futsal GG
           </h1>
           <p className="text-muted-foreground">Scoreboard</p>
         </header>
