@@ -118,6 +118,16 @@ export class EloParameters {
      */
     public static readonly LOSS_SCORE = 0;
 
+    /**
+     * Multiplier that reduces the ELO impact of draws.
+     * Draws have less ELO swing than wins/losses to prevent extreme rating changes
+     * for favorites/underdogs in draw scenarios.
+     * Range: 0.0 (draws have no ELO impact) to 1.0 (draws have full impact)
+     * Default: 0.5 means draws cause 50% of the ELO impact of a win/loss.
+     * Example: A favorite losing 15 ELO in a draw would lose 7.5 ELO instead.
+     */
+    public static readonly DRAW_ELO_MULTIPLIER = 0.5;
+
     // ============================================================================
     // Goal Differential
     // ============================================================================

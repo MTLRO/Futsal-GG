@@ -21,34 +21,19 @@ export class EloCalculator {
         const homeTeam = this.game.getHomeTeam();
         const awayTeam = this.game.getAwayTeam();
 
-        // Determine winning team
-        const homeWon = this.result === GameResult.HOME_WIN;
-        const awayWon = this.result === GameResult.AWAY_WIN;
-
-        // Calculate blended shares for all players
-        const homeShares = this.calculateTeamShares(homeTeam, homeWon);
-        const awayShares = this.calculateTeamShares(awayTeam, awayWon);
-
-        // Calculate total shares
-        const totalHomeShares = homeShares.reduce((sum, share) => sum + share, 0);
-        const totalAwayShares = awayShares.reduce((sum, share) => sum + share, 0);
-
         // Calculate ELO changes for home team
         console.log("Home Team ELO Change")
         for (let i = 0; i < EloParameters.TEAM_SIZE; i++) {
             const player = homeTeam.players[i];
             console.log("Player: ", player.name)
-            const blendedShare = homeShares[i];
-            console.log("   blended share: ", blendedShare);
-            const eloChange = this.calculatePlayerEloChange(player, blendedShare, totalHomeShares, homeTeam, awayTeam);
+            const eloChange = this.calculatePlayerEloChange(player, homeTeam, awayTeam);
             eloChanges.set(player.playerId, eloChange);
         }
 
         // Calculate ELO changes for away team
         for (let i = 0; i < EloParameters.TEAM_SIZE; i++) {
             const player = awayTeam.players[i];
-            const blendedShare = awayShares[i];
-            const eloChange = this.calculatePlayerEloChange(player, blendedShare, totalAwayShares, awayTeam, homeTeam);
+            const eloChange = this.calculatePlayerEloChange(player, awayTeam, homeTeam);
             eloChanges.set(player.playerId, eloChange);
         }
 
@@ -57,53 +42,80 @@ export class EloCalculator {
 
     /**
      *
-     * @param team
-     * @param isWinningTeam - whether this team won the game (false for draws and losses)
+     * @param player - the player to calculate share for
+     * @param team - the player's team
+     * @param teamWonElo - whether this team won ELO (true for wins, false for losses, false for draws)
      * @private
      *
-     * This method computes the shares of the pot for each player in a team
+     * This method computes the blended share of the pot for a specific player
      */
-    private calculateTeamShares(team: Team, isWinningTeam: boolean): number[] {
-        const shares: number[] = [];
-        const isDraw = this.result === GameResult.DRAW;
+    private calculateTeamShare(player: Player, team: Team, teamWonElo: boolean): number {
+        const playerEloShare = player.effectiveElo / team.effectiveTotalElo;
+        const decisiveness = player.getDecisiveness(this.game);
 
-        for (const player of team.players) {
-            const playerEloShare = player.effectiveElo / team.effectiveTotalElo;
-            const decisiveness = player.getDecisiveness(this.game);
+        let individualShare = 1.0;
 
-            // For losing teams, invert decisiveness: high performers lose less, low performers lose more
-            // For draws and winning teams, use decisiveness as-is
-            // Formula for losers: 2 - decisiveness
-            // Examples:
-            //   - Clutch scorer who lost (1.4) → 0.6 (loses less ELO) ✓
-            //   - Regular scorer who lost (1.0) → 1.0 (normal loss) ✓
-            //   - No goals winner who lost (0.9) → 1.1 (loses more ELO) ✓
-            const adjustedDecisiveness = (isWinningTeam || isDraw) ? decisiveness : (2 - decisiveness);
-
-            const individualShare = adjustedDecisiveness * playerEloShare;
-            const blendedShare = player.qFactor * individualShare + (1 - player.qFactor) * playerEloShare;
-            shares.push(blendedShare);
+        if (teamWonElo) {
+            individualShare = decisiveness * playerEloShare;
+        } else {
+            individualShare = playerEloShare / decisiveness;
         }
-        return shares;
+
+        return player.qFactor * individualShare + (1 - player.qFactor) * playerEloShare;
     }
 
     private calculatePlayerEloChange(
         player: Player,
-        blendedShare: number,
-        totalTeammateShares: number,
         playerTeam: Team,
         opponentTeam: Team
     ): number {
-        const playerWon = this.game.didPlayerWin(player);
+        // Determine if this team won or lost ELO
+        const teamWonElo = this.determineTeamWonElo(playerTeam, opponentTeam);
+
+        // Calculate the blended share for this player based on whether team won/lost ELO
+        console.log(player.name, "won or lost? -> " + teamWonElo);
+        const blendedShare = this.calculateTeamShare(player, playerTeam, teamWonElo);
+
+        // Calculate total shares for all teammates to determine scaling factor
+        let totalTeammateShares = 0;
+        for (const teammate of playerTeam.players) {
+            totalTeammateShares += this.calculateTeamShare(teammate, playerTeam, teamWonElo);
+        }
+        console.log("total teamate shares: ", totalTeammateShares);
         const scalingFactor = this.eloPot / totalTeammateShares;
-        if (this.result === GameResult.DRAW) {
-            const expectedScore = this.getExpectedScore(playerTeam.effectiveAverageElo, opponentTeam.effectiveAverageElo);
-            const drawSign = expectedScore < EloParameters.DRAW_SCORE ? 1 : (expectedScore > EloParameters.DRAW_SCORE ? -1 : 0);
-            return Math.round(scalingFactor * blendedShare * drawSign);
-        } else if (playerWon) {
-            return Math.round(scalingFactor * blendedShare);
+        console.log("scaling factor for ", player.name);
+
+        // Return ELO change based on whether team won or lost ELO
+        let eloChange: number;
+        if (teamWonElo) {
+            eloChange = Math.round(scalingFactor * blendedShare);
         } else {
-            return -Math.round(scalingFactor * blendedShare);
+            eloChange = -Math.round(scalingFactor * blendedShare);
+        }
+
+        // Apply draw multiplier to reduce ELO impact in draws
+        if (this.result === GameResult.DRAW) {
+            eloChange = Math.round(eloChange * EloParameters.DRAW_ELO_MULTIPLIER);
+        }
+
+        return eloChange;
+    }
+
+    /**
+     * Determines if a team won or lost ELO based on the game result and expected score
+     * In a draw: team wins ELO if they were expected to lose, loses ELO if expected to win
+     * In a win/loss: team wins ELO on win, loses ELO on loss
+     */
+    private determineTeamWonElo(team: Team, opponentTeam: Team): boolean {
+        if (this.result === GameResult.DRAW) {
+            const expectedScore = this.getExpectedScore(team.effectiveAverageElo, opponentTeam.effectiveAverageElo);
+            // Team wins ELO in a draw if expected score < 0.5 (they were the underdog)
+            // Team loses ELO in a draw if expected score > 0.5 (they were the favorite)
+            return expectedScore < EloParameters.DRAW_SCORE;
+        } else if (this.result === GameResult.HOME_WIN) {
+            return this.game.getHomeTeam() === team;
+        } else {
+            return this.game.getAwayTeam() === team;
         }
     }
 
