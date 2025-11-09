@@ -43,7 +43,8 @@
       "Bash(curl:*)",
       "Bash(git add:*)",
       "Bash(git restore:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(del srcappfavicon.ico)"
     ],
     "deny": [],
     "ask": []
