@@ -120,8 +120,19 @@ jobs:
 
       - name: Health Check
         run: |
-          sleep 10
-          curl -f https://futsalgg.com/api/health || exit 1
+          sleep 30
+          for i in {1..20}; do
+            echo "Health check attempt $i/20"
+            if curl -f https://futsalgg.com/api/health; then
+              echo "Health check passed!"
+              exit 0
+            fi
+            if [ $i -lt 20 ]; then
+              sleep 3
+            fi
+          done
+          echo "Health check failed after 20 attempts"
+          exit 1
 
       - name: Notify on success
         if: success()
