@@ -63,9 +63,8 @@ export default function Home() {
           <p className="text-muted-foreground">Scoreboard</p>
         </header>
 
-        {/* Scoreboard Header with Game History Button */}
-        <div className="mb-4 flex justify-between items-center">
-          <h2 className="text-2xl font-semibold">Scoreboard</h2>
+        {/* Game History Button */}
+        <div className="mb-4 flex justify-center">
           <GameHistoryModal />
         </div>
 

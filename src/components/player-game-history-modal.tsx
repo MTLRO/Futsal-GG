@@ -60,7 +60,9 @@ export function PlayerGameHistoryModal({
 
   const formatDateTime = (dateTimeString: string) => {
     const date = new Date(dateTimeString)
-    return date.toLocaleString()
+    const dateStr = date.toLocaleDateString()
+    const timeStr = date.toLocaleTimeString()
+    return { dateStr, timeStr }
   }
 
   const formatResult = (
@@ -81,10 +83,10 @@ export function PlayerGameHistoryModal({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="!max-w-4xl max-h-[90vh] overflow-auto">
-        <DialogHeader>
-          <DialogTitle>{playerName}&apos;s Game History</DialogTitle>
-          <DialogDescription>All games participated in</DialogDescription>
+      <DialogContent className="!max-w-4xl max-h-[90vh] overflow-auto flex flex-col items-center">
+        <DialogHeader className="w-full">
+          <DialogTitle className="text-center">{playerName}&apos;s Game History</DialogTitle>
+          <DialogDescription className="text-center">All games participated in</DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
@@ -100,51 +102,55 @@ export function PlayerGameHistoryModal({
             <div className="text-muted-foreground">No games played yet</div>
           </div>
         ) : (
-          <div className="rounded-lg border bg-card overflow-auto">
+          <div className="rounded-lg border bg-card overflow-auto w-fit mx-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>DateTime</TableHead>
-                  <TableHead className="text-right">Your ELO</TableHead>
-                  <TableHead className="text-right">Opponent Avg ELO</TableHead>
-                  <TableHead className="text-right">Your Goals</TableHead>
-                  <TableHead className="text-right">Score</TableHead>
-                  <TableHead className="text-right">Result</TableHead>
+                  <TableHead className="text-center">DateTime</TableHead>
+                  <TableHead className="text-center">Your ELO</TableHead>
+                  <TableHead className="text-center">Opponent Avg ELO</TableHead>
+                  <TableHead className="text-center">Your Goals</TableHead>
+                  <TableHead className="text-center">Score</TableHead>
+                  <TableHead className="text-center">Result</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {gameHistory.map((game) => (
-                  <TableRow key={game.gameId}>
-                    <TableCell className="whitespace-nowrap">
-                      {formatDateTime(game.dateTime)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {game.playerEloAtGame}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {game.opponentTeamAverageElo}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {game.goals}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {game.teamScore} - {game.opponentScore}
-                    </TableCell>
-                    <TableCell className="text-right font-bold">
-                      <span
-                        className={
-                          game.deltaELO > 0
-                            ? "text-green-600"
-                            : game.deltaELO < 0
-                              ? "text-red-600"
-                              : "text-muted-foreground"
-                        }
-                      >
-                        {formatResult(game.teamScore, game.opponentScore, game.deltaELO)}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {gameHistory.map((game) => {
+                  const { dateStr, timeStr } = formatDateTime(game.dateTime)
+                  return (
+                    <TableRow key={game.gameId}>
+                      <TableCell className="whitespace-nowrap text-center">
+                        <div>{dateStr}</div>
+                        <div>{timeStr}</div>
+                      </TableCell>
+                      <TableCell className="text-center font-semibold">
+                        {game.playerEloAtGame}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {game.opponentTeamAverageElo}
+                      </TableCell>
+                      <TableCell className="text-center font-medium">
+                        {game.goals}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {game.teamScore} - {game.opponentScore}
+                      </TableCell>
+                      <TableCell className="text-center font-bold">
+                        <span
+                          className={
+                            game.deltaELO > 0
+                              ? "text-green-600"
+                              : game.deltaELO < 0
+                                ? "text-red-600"
+                                : "text-muted-foreground"
+                          }
+                        >
+                          {formatResult(game.teamScore, game.opponentScore, game.deltaELO)}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>

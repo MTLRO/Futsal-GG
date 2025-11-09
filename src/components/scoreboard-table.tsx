@@ -33,16 +33,16 @@ export function ScoreboardTable({ data }: ScoreboardTableProps) {
   const sortedData = [...data].sort((a, b) => b.elo - a.elo)
 
   return (
-    <div className="rounded-lg border bg-card">
+    <div className="rounded-lg border bg-card mx-auto w-fit">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[50px]">Rank</TableHead>
-            <TableHead>Name</TableHead>
-            <TableHead className="text-right">Games</TableHead>
-            <TableHead className="text-right">Goals</TableHead>
-            <TableHead className="text-right">ELO</TableHead>
-            <TableHead className="text-right">Last 5 Δ</TableHead>
+            <TableHead className="text-center">Rank</TableHead>
+            <TableHead className="text-center">Name</TableHead>
+            <TableHead className="text-center">Games</TableHead>
+            <TableHead className="text-center">Goals</TableHead>
+            <TableHead className="text-center">ELO</TableHead>
+            <TableHead className="text-center">Last 5 Δ</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -65,26 +65,26 @@ export function ScoreboardTable({ data }: ScoreboardTableProps) {
 
               return (
                 <TableRow key={entry.playerId} className={bgClass}>
-                  <TableCell className="font-bold text-lg">{index + 1}</TableCell>
-                  <TableCell>
+                  <TableCell className="font-bold text-lg text-center">{index + 1}</TableCell>
+                  <TableCell className="text-center">
                     <button
                       onClick={() => {
                         setSelectedPlayerId(entry.playerId)
                         setSelectedPlayerName(entry.name)
                       }}
-                      className="font-medium hover:underline cursor-pointer text-left"
+                      className="font-medium hover:underline cursor-pointer"
                     >
                       {entry.name}
                     </button>
                   </TableCell>
-                  <TableCell className="text-right">{entry.gamesPlayed}</TableCell>
-                  <TableCell className="text-right font-semibold text-blue-600">
+                  <TableCell className="text-center">{entry.gamesPlayed}</TableCell>
+                  <TableCell className="text-center font-semibold text-blue-600">
                     {entry.goalsScored}
                   </TableCell>
-                  <TableCell className="text-right font-semibold text-primary">
+                  <TableCell className="text-center font-semibold text-primary">
                     {entry.elo}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-center">
                     <span
                       className={
                         entry.last5GamesDeltaELO > 0

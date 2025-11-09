@@ -60,16 +60,12 @@ export function GameHistoryModal() {
     enabled: open,
   })
 
-  const formatDateTime = (dateTimeString: string) => {
+  const formatDateTime = (dateTimeString: string, timePlayed: number | null) => {
     const date = new Date(dateTimeString)
-    return date.toLocaleString()
-  }
-
-  const formatTime = (seconds: number | null) => {
-    if (!seconds) return "-"
-    const minutes = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${minutes}:${secs.toString().padStart(2, "0")}`
+    const dateStr = date.toLocaleDateString()
+    const timeStr = date.toLocaleTimeString()
+    const timePlayedStr = timePlayed ? `${timePlayed} minutes` : "-"
+    return { dateStr, timeStr, timePlayedStr }
   }
 
   const renderGoals = (goals: number) => {
@@ -100,10 +96,10 @@ export function GameHistoryModal() {
           Game History
         </Button>
       </DialogTrigger>
-      <DialogContent className="!max-w-none w-[95vw] max-h-[90vh] overflow-auto">
-        <DialogHeader>
-          <DialogTitle>Game History</DialogTitle>
-          <DialogDescription>Previous game results and statistics</DialogDescription>
+      <DialogContent className="!max-w-none w-[95vw] max-h-[90vh] overflow-auto flex flex-col items-center">
+        <DialogHeader className="w-full">
+          <DialogTitle className="text-center">Game History</DialogTitle>
+          <DialogDescription className="text-center">Previous game results and statistics</DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
@@ -119,83 +115,84 @@ export function GameHistoryModal() {
             <div className="text-muted-foreground">No games played yet</div>
           </div>
         ) : (
-          <div className="rounded-lg border bg-card overflow-auto">
+          <div className="rounded-lg border bg-card overflow-auto w-fit mx-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>DateTime</TableHead>
-                  <TableHead>Team 1 Players</TableHead>
-                  <TableHead className="text-right">Team 1 Avg ELO</TableHead>
-                  <TableHead>Team 2 Players</TableHead>
-                  <TableHead className="text-right">Team 2 Avg ELO</TableHead>
-                  <TableHead className="text-right">Time Played</TableHead>
-                  <TableHead className="text-right">Score</TableHead>
+                  <TableHead className="text-center">DateTime</TableHead>
+                  <TableHead className="text-center">Team 1</TableHead>
+                  <TableHead className="text-center">Team 2</TableHead>
+                  <TableHead className="text-center">Score</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {gameHistory.map((game) => (
-                  <TableRow key={game.gameId}>
-                    <TableCell className="whitespace-nowrap">
-                      {formatDateTime(game.dateTime)}
-                    </TableCell>
-                    <TableCell className="max-w-[250px] break-words">
-                      <div className="space-y-1">
-                        {game.team1Players.map((p, idx) => (
-                          <div key={idx} className="flex items-center">
-                            <span>{p.name}</span>
-                            {renderGoals(p.goals)}
-                            {renderEnergyIcon(p.gameInARow)}
-                            <span
-                              className={`font-medium ml-1 ${
-                                p.deltaELO > 0
-                                  ? "text-green-600"
-                                  : p.deltaELO < 0
-                                    ? "text-red-600"
-                                    : "text-muted-foreground"
-                              }`}
-                            >
-                              ({p.deltaELO > 0 ? "+" : ""}
-                              {p.deltaELO})
-                            </span>
+                {gameHistory.map((game) => {
+                  const { dateStr, timeStr, timePlayedStr } = formatDateTime(game.dateTime, game.timePlayed)
+                  return (
+                    <TableRow key={game.gameId}>
+                      <TableCell className="whitespace-nowrap text-center">
+                        <div>{dateStr}</div>
+                        <div>{timeStr}</div>
+                        <div className="text-gray-500 italic text-sm">{timePlayedStr}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          {game.team1Players.map((p, idx) => (
+                            <div key={idx} className="flex items-center">
+                              <span>{p.name}</span>
+                              {renderGoals(p.goals)}
+                              {renderEnergyIcon(p.gameInARow)}
+                              <span
+                                className={`font-medium ml-1 ${
+                                  p.deltaELO > 0
+                                    ? "text-green-600"
+                                    : p.deltaELO < 0
+                                      ? "text-red-600"
+                                      : "text-muted-foreground"
+                                }`}
+                              >
+                                ({p.deltaELO > 0 ? "+" : ""}
+                                {p.deltaELO})
+                              </span>
+                            </div>
+                          ))}
+                          <div className="text-sm text-gray-500 mt-1">
+                            Avg ELO: {game.team1AverageElo}
                           </div>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {game.team1AverageElo}
-                    </TableCell>
-                    <TableCell className="max-w-[250px] break-words">
-                      <div className="space-y-1">
-                        {game.team2Players.map((p, idx) => (
-                          <div key={idx} className="flex items-center">
-                            <span>{p.name}</span>
-                            {renderGoals(p.goals)}
-                            {renderEnergyIcon(p.gameInARow)}
-                            <span
-                              className={`font-medium ml-1 ${
-                                p.deltaELO > 0
-                                  ? "text-green-600"
-                                  : p.deltaELO < 0
-                                    ? "text-red-600"
-                                    : "text-muted-foreground"
-                              }`}
-                            >
-                              ({p.deltaELO > 0 ? "+" : ""}
-                              {p.deltaELO})
-                            </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          {game.team2Players.map((p, idx) => (
+                            <div key={idx} className="flex items-center">
+                              <span>{p.name}</span>
+                              {renderGoals(p.goals)}
+                              {renderEnergyIcon(p.gameInARow)}
+                              <span
+                                className={`font-medium ml-1 ${
+                                  p.deltaELO > 0
+                                    ? "text-green-600"
+                                    : p.deltaELO < 0
+                                      ? "text-red-600"
+                                      : "text-muted-foreground"
+                                }`}
+                              >
+                                ({p.deltaELO > 0 ? "+" : ""}
+                                {p.deltaELO})
+                              </span>
+                            </div>
+                          ))}
+                          <div className="text-sm text-gray-500 mt-1">
+                            Avg ELO: {game.team2AverageElo}
                           </div>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {game.team2AverageElo}
-                    </TableCell>
-                    <TableCell className="text-right">{formatTime(game.timePlayed)}</TableCell>
-                    <TableCell className="text-right font-bold">
-                      {game.team1Score} - {game.team2Score}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center font-bold">
+                        {game.team1Score} - {game.team2Score}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
