@@ -21,9 +21,13 @@ export class EloCalculator {
         const homeTeam = this.game.getHomeTeam();
         const awayTeam = this.game.getAwayTeam();
 
+        // Determine winning team
+        const homeWon = this.result === GameResult.HOME_WIN;
+        const awayWon = this.result === GameResult.AWAY_WIN;
+
         // Calculate blended shares for all players
-        const homeShares = this.calculateTeamShares(homeTeam);
-        const awayShares = this.calculateTeamShares(awayTeam);
+        const homeShares = this.calculateTeamShares(homeTeam, homeWon);
+        const awayShares = this.calculateTeamShares(awayTeam, awayWon);
 
         // Calculate total shares
         const totalHomeShares = homeShares.reduce((sum, share) => sum + share, 0);
@@ -54,15 +58,29 @@ export class EloCalculator {
     /**
      *
      * @param team
+     * @param isWinningTeam - whether this team won the game (false for draws and losses)
      * @private
      *
      * This method computes the shares of the pot for each player in a team
      */
-    private calculateTeamShares(team: Team): number[] {
+    private calculateTeamShares(team: Team, isWinningTeam: boolean): number[] {
         const shares: number[] = [];
+        const isDraw = this.result === GameResult.DRAW;
+
         for (const player of team.players) {
             const playerEloShare = player.effectiveElo / team.effectiveTotalElo;
-            const individualShare = player.getDecisiveness(this.game) * playerEloShare;
+            const decisiveness = player.getDecisiveness(this.game);
+
+            // For losing teams, invert decisiveness: high performers lose less, low performers lose more
+            // For draws and winning teams, use decisiveness as-is
+            // Formula for losers: 2 - decisiveness
+            // Examples:
+            //   - Clutch scorer who lost (1.4) → 0.6 (loses less ELO) ✓
+            //   - Regular scorer who lost (1.0) → 1.0 (normal loss) ✓
+            //   - No goals winner who lost (0.9) → 1.1 (loses more ELO) ✓
+            const adjustedDecisiveness = (isWinningTeam || isDraw) ? decisiveness : (2 - decisiveness);
+
+            const individualShare = adjustedDecisiveness * playerEloShare;
             const blendedShare = player.qFactor * individualShare + (1 - player.qFactor) * playerEloShare;
             shares.push(blendedShare);
         }
