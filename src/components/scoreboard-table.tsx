@@ -29,8 +29,11 @@ export function ScoreboardTable({ data }: ScoreboardTableProps) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
   const [selectedPlayerName, setSelectedPlayerName] = useState<string>("")
 
-  // Sort by ELO descending
-  const sortedData = [...data].sort((a, b) => b.elo - a.elo)
+  // Filter out players with 0 games, sort by ELO descending, and take top 15
+  const sortedData = [...data]
+    .filter((entry) => entry.gamesPlayed > 0)
+    .sort((a, b) => b.elo - a.elo)
+    .slice(0, 15)
 
   return (
     <div className="rounded-lg border bg-card mx-auto w-fit">
@@ -39,10 +42,10 @@ export function ScoreboardTable({ data }: ScoreboardTableProps) {
           <TableRow>
             <TableHead className="text-center">Rank</TableHead>
             <TableHead className="text-center">Name</TableHead>
-            <TableHead className="text-center">Games</TableHead>
-            <TableHead className="text-center">Goals</TableHead>
+            <TableHead className="text-center">GP</TableHead>
+            <TableHead className="text-center">G</TableHead>
             <TableHead className="text-center">ELO</TableHead>
-            <TableHead className="text-center">Last 5 Δ</TableHead>
+            <TableHead className="text-center">Form</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
