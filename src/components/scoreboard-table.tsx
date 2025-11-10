@@ -40,18 +40,17 @@ export function ScoreboardTable({ data }: ScoreboardTableProps) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="text-center">Rank</TableHead>
-            <TableHead className="text-center">Name</TableHead>
-            <TableHead className="text-center">GP</TableHead>
-            <TableHead className="text-center">G</TableHead>
-            <TableHead className="text-center">ELO</TableHead>
-            <TableHead className="text-center">Form</TableHead>
+            <TableHead className="text-center py-2">Rank</TableHead>
+            <TableHead className="text-center py-2">Name</TableHead>
+            <TableHead className="text-center py-2">GP</TableHead>
+            <TableHead className="text-center py-2">G</TableHead>
+            <TableHead className="text-center py-2">Rating</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {sortedData.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+              <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                 No players yet
               </TableCell>
             </TableRow>
@@ -68,8 +67,8 @@ export function ScoreboardTable({ data }: ScoreboardTableProps) {
 
               return (
                 <TableRow key={entry.playerId} className={bgClass}>
-                  <TableCell className="font-bold text-lg text-center">{index + 1}</TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="font-bold text-lg text-center py-2">{index + 1}</TableCell>
+                  <TableCell className="text-center py-2">
                     <button
                       onClick={() => {
                         setSelectedPlayerId(entry.playerId)
@@ -80,26 +79,12 @@ export function ScoreboardTable({ data }: ScoreboardTableProps) {
                       {entry.name}
                     </button>
                   </TableCell>
-                  <TableCell className="text-center">{entry.gamesPlayed}</TableCell>
-                  <TableCell className="text-center font-semibold text-blue-600">
+                  <TableCell className="text-center py-2">{entry.gamesPlayed}</TableCell>
+                  <TableCell className="text-center font-semibold text-blue-600 py-2">
                     {entry.goalsScored}
                   </TableCell>
-                  <TableCell className="text-center font-semibold text-primary">
+                  <TableCell className="text-center font-semibold text-primary py-2">
                     {entry.elo}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <span
-                      className={
-                        entry.last5GamesDeltaELO > 0
-                          ? "text-green-600 font-medium"
-                          : entry.last5GamesDeltaELO < 0
-                            ? "text-red-600 font-medium"
-                            : "text-muted-foreground"
-                      }
-                    >
-                      {entry.last5GamesDeltaELO > 0 ? "+" : ""}
-                      {entry.last5GamesDeltaELO}
-                    </span>
                   </TableCell>
                 </TableRow>
               )
