@@ -10,6 +10,7 @@ interface Player {
   id: number
   name: string
   lastName: string
+  elo: number
 }
 
 interface TeamsData {
@@ -30,6 +31,15 @@ function generateRandomTeams(players: Player[]): TeamsData {
 function getPlayerName(playerId: number, allPlayers: Player[]): string {
   const player = allPlayers.find((p) => p.id === playerId)
   return player ? player.name : "Unknown"
+}
+
+function calculateAverageElo(playerIds: number[], allPlayers: Player[]): number {
+  if (playerIds.length === 0) return 0
+  const totalElo = playerIds.reduce((sum, playerId) => {
+    const player = allPlayers.find((p) => p.id === playerId)
+    return sum + (player?.elo || 1500)
+  }, 0)
+  return Math.round(totalElo / playerIds.length)
 }
 
 export function ChangeTeamsModal() {
@@ -173,29 +183,38 @@ export function ChangeTeamsModal() {
     setDraggedPlayerId(null)
   }
 
-  const TeamColumn = ({ team, teamLetter }: { team: number[]; teamLetter: "A" | "B" | "C" }) => (
-    <div className="flex flex-col gap-2">
-      <h3 className="font-bold text-lg text-center">Team {teamLetter}</h3>
-      <div
-        onDragOver={handleDragOver}
-        onDrop={(e) => handleDropTeam(e, teamLetter)}
-        className="border-2 border-dashed border-primary rounded-lg p-4 min-h-[300px] bg-secondary/50"
-      >
-        <div className="space-y-2">
-          {team.map((playerId) => (
-            <div
-              key={playerId}
-              draggable
-              onDragStart={() => handleDragStart(playerId)}
-              className="bg-white p-3 rounded border border-gray-200 cursor-move hover:bg-gray-50"
-            >
-              {getPlayerName(playerId, allPlayers)}
-            </div>
-          ))}
+  const TeamColumn = ({ team, teamLetter }: { team: number[]; teamLetter: "A" | "B" | "C" }) => {
+    const avgElo = calculateAverageElo(team, allPlayers)
+
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="text-center">
+          <h3 className="font-bold text-lg">Team {teamLetter}</h3>
+          <p className="text-sm text-muted-foreground">
+            Avg ELO: {avgElo > 0 ? avgElo : "—"} {team.length > 0 && `(${team.length} player${team.length !== 1 ? 's' : ''})`}
+          </p>
+        </div>
+        <div
+          onDragOver={handleDragOver}
+          onDrop={(e) => handleDropTeam(e, teamLetter)}
+          className="border-2 border-dashed border-primary rounded-lg p-4 min-h-[300px] bg-secondary/50"
+        >
+          <div className="space-y-2">
+            {team.map((playerId) => (
+              <div
+                key={playerId}
+                draggable
+                onDragStart={() => handleDragStart(playerId)}
+                className="bg-white p-3 rounded border border-gray-200 cursor-move hover:bg-gray-50"
+              >
+                {getPlayerName(playerId, allPlayers)}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
