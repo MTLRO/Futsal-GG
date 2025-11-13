@@ -29,9 +29,9 @@ export function ScoreboardTable({ data }: ScoreboardTableProps) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
   const [selectedPlayerName, setSelectedPlayerName] = useState<string>("")
 
-  // Filter out players with 0 games, sort by ELO descending, and take top 15
+  // Filter players with minimum 12 games, sort by ELO descending, and take top 15
   const sortedData = [...data]
-    .filter((entry) => entry.gamesPlayed > 0)
+    .filter((entry) => entry.gamesPlayed >= 12)
     .sort((a, b) => b.elo - a.elo)
     .slice(0, 15)
 
