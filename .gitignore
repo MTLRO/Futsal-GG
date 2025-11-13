@@ -63,3 +63,9 @@ next-env.d.ts
 /prisma/seed.ts
 /prisma/migrations/
 vps.config
+
+# IDE
+.idea/
+
+# Claude Code
+.claude/
