@@ -5,6 +5,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Users } from "lucide-react"
+import {
+  DndContext,
+  useDraggable,
+  useDroppable,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  pointerWithin,
+} from "@dnd-kit/core"
+import { CSS } from "@dnd-kit/utilities"
 
 interface Player {
   id: number
@@ -42,14 +54,140 @@ function calculateAverageElo(playerIds: number[], allPlayers: Player[]): number 
   return Math.round(totalElo / playerIds.length)
 }
 
+// Player Card Component (for display only)
+function PlayerCard({ playerName, className = "" }: { playerName: string; className?: string }) {
+  return (
+    <div className={`bg-white p-3 rounded border border-gray-200 ${className}`}>
+      {playerName}
+    </div>
+  )
+}
+
+// Draggable Player Component
+function DraggablePlayer({ playerId, playerName }: { playerId: number; playerName: string }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `player-${playerId}`,
+    data: { playerId },
+  })
+
+  const style = transform ? {
+    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+    zIndex: isDragging ? 50 : undefined,
+  } : undefined
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className="cursor-move"
+    >
+      <PlayerCard
+        playerName={playerName}
+        className={`hover:bg-gray-50 ${isDragging ? 'shadow-2xl' : ''}`}
+      />
+    </div>
+  )
+}
+
+// Droppable Team Zone Component
+function DroppableTeamZone({
+  teamId,
+  team,
+  teamLetter,
+  allPlayers,
+}: {
+  teamId: string
+  team: number[]
+  teamLetter: "A" | "B" | "C"
+  allPlayers: Player[]
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: teamId,
+    data: { teamLetter },
+  })
+
+  const avgElo = calculateAverageElo(team, allPlayers)
+
+  return (
+    <div ref={setNodeRef} className="flex flex-col gap-2">
+      <div className="text-center">
+        <h3 className="font-bold text-lg">Team {teamLetter}</h3>
+        <p className="text-sm text-muted-foreground">
+          Avg ELO: {avgElo > 0 ? avgElo : "—"} {team.length > 0 && `(${team.length} player${team.length !== 1 ? 's' : ''})`}
+        </p>
+      </div>
+      <div
+        className={`border-2 border-dashed rounded-lg p-4 min-h-[300px] transition-colors ${
+          isOver ? "border-primary bg-primary/10" : "border-primary bg-secondary/50"
+        }`}
+      >
+        <div className="space-y-2">
+          {team.map((playerId) => (
+            <DraggablePlayer
+              key={playerId}
+              playerId={playerId}
+              playerName={getPlayerName(playerId, allPlayers)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Droppable Unassigned Zone Component
+function DroppableUnassignedZone({ unassigned, allPlayers }: { unassigned: number[]; allPlayers: Player[] }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: "unassigned",
+  })
+
+  return (
+    <div ref={setNodeRef} className="space-y-2">
+      <h3 className="font-bold text-lg">Unassigned Players</h3>
+      <div
+        className={`border-2 border-dashed rounded-lg p-4 min-h-[100px] transition-colors ${
+          isOver ? "border-primary bg-primary/10" : "border-gray-300 bg-gray-50"
+        }`}
+      >
+        <div className="flex flex-wrap gap-2">
+          {unassigned.map((playerId) => (
+            <DraggablePlayer
+              key={playerId}
+              playerId={playerId}
+              playerName={getPlayerName(playerId, allPlayers)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ChangeTeamsModal() {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
-  const [draggedPlayerId, setDraggedPlayerId] = useState<number | null>(null)
   const [teamA, setTeamA] = useState<number[]>([])
   const [teamB, setTeamB] = useState<number[]>([])
   const [teamC, setTeamC] = useState<number[]>([])
   const [unassigned, setUnassigned] = useState<number[]>([])
+
+  // Configure sensors for both mouse and touch with activation constraints
+  const mouseSensor = useSensor(MouseSensor, {
+    activationConstraint: {
+      distance: 8, // 8px movement required before drag starts
+    },
+  })
+
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: {
+      delay: 200, // 200ms hold before drag starts (prevents conflicts with scrolling)
+      tolerance: 8, // 8px movement tolerance
+    },
+  })
+
+  const sensors = useSensors(mouseSensor, touchSensor)
 
   const { data: allPlayers = [] } = useQuery<Player[]>({
     queryKey: ["players"],
@@ -129,19 +267,28 @@ export function ChangeTeamsModal() {
     },
   })
 
-  const handleDragStart = (playerId: number) => {
-    setDraggedPlayerId(playerId)
-  }
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-  }
+    if (!over) return
 
-  const movePlayer = (
-    fromTeam: "A" | "B" | "C" | "unassigned",
-    toTeam: "A" | "B" | "C" | "unassigned",
-    playerId: number
-  ) => {
+    // Extract player ID from the draggable ID (format: "player-{id}")
+    const playerId = Number((active.id as string).replace("player-", ""))
+    const targetZone = over.id as string
+
+    // Find which team the player is currently in
+    let fromTeam: "A" | "B" | "C" | "unassigned" = "unassigned"
+    if (teamA.includes(playerId)) fromTeam = "A"
+    else if (teamB.includes(playerId)) fromTeam = "B"
+    else if (teamC.includes(playerId)) fromTeam = "C"
+
+    // Determine target team
+    let toTeam: "A" | "B" | "C" | "unassigned" = "unassigned"
+    if (targetZone === "team-a") toTeam = "A"
+    else if (targetZone === "team-b") toTeam = "B"
+    else if (targetZone === "team-c") toTeam = "C"
+
+    // Don't move if dropping in the same zone
     if (fromTeam === toTeam) return
 
     // Remove from source
@@ -157,65 +304,6 @@ export function ChangeTeamsModal() {
     else setUnassigned((prev) => [...prev, playerId])
   }
 
-  const handleDropTeam = (e: React.DragEvent, toTeam: "A" | "B" | "C") => {
-    e.preventDefault()
-    if (!draggedPlayerId) return
-
-    let fromTeam: "A" | "B" | "C" | "unassigned" = "unassigned"
-    if (teamA.includes(draggedPlayerId)) fromTeam = "A"
-    else if (teamB.includes(draggedPlayerId)) fromTeam = "B"
-    else if (teamC.includes(draggedPlayerId)) fromTeam = "C"
-
-    movePlayer(fromTeam, toTeam, draggedPlayerId)
-    setDraggedPlayerId(null)
-  }
-
-  const handleDropUnassigned = (e: React.DragEvent) => {
-    e.preventDefault()
-    if (!draggedPlayerId) return
-
-    let fromTeam: "A" | "B" | "C" | "unassigned" = "unassigned"
-    if (teamA.includes(draggedPlayerId)) fromTeam = "A"
-    else if (teamB.includes(draggedPlayerId)) fromTeam = "B"
-    else if (teamC.includes(draggedPlayerId)) fromTeam = "C"
-
-    movePlayer(fromTeam, "unassigned", draggedPlayerId)
-    setDraggedPlayerId(null)
-  }
-
-  const TeamColumn = ({ team, teamLetter }: { team: number[]; teamLetter: "A" | "B" | "C" }) => {
-    const avgElo = calculateAverageElo(team, allPlayers)
-
-    return (
-      <div className="flex flex-col gap-2">
-        <div className="text-center">
-          <h3 className="font-bold text-lg">Team {teamLetter}</h3>
-          <p className="text-sm text-muted-foreground">
-            Avg ELO: {avgElo > 0 ? avgElo : "—"} {team.length > 0 && `(${team.length} player${team.length !== 1 ? 's' : ''})`}
-          </p>
-        </div>
-        <div
-          onDragOver={handleDragOver}
-          onDrop={(e) => handleDropTeam(e, teamLetter)}
-          className="border-2 border-dashed border-primary rounded-lg p-4 min-h-[300px] bg-secondary/50"
-        >
-          <div className="space-y-2">
-            {team.map((playerId) => (
-              <div
-                key={playerId}
-                draggable
-                onDragStart={() => handleDragStart(playerId)}
-                className="bg-white p-3 rounded border border-gray-200 cursor-move hover:bg-gray-50"
-              >
-                {getPlayerName(playerId, allPlayers)}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -229,52 +317,34 @@ export function ChangeTeamsModal() {
           <DialogTitle>Manage Teams</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Teams Grid */}
-          <div className="grid grid-cols-3 gap-4">
-            <TeamColumn team={teamA} teamLetter="A" />
-            <TeamColumn team={teamB} teamLetter="B" />
-            <TeamColumn team={teamC} teamLetter="C" />
-          </div>
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={pointerWithin}>
+          <div className="space-y-6">
+            {/* Teams Grid */}
+            <div className="grid grid-cols-3 gap-4">
+              <DroppableTeamZone teamId="team-a" team={teamA} teamLetter="A" allPlayers={allPlayers} />
+              <DroppableTeamZone teamId="team-b" team={teamB} teamLetter="B" allPlayers={allPlayers} />
+              <DroppableTeamZone teamId="team-c" team={teamC} teamLetter="C" allPlayers={allPlayers} />
+            </div>
 
-          {/* Unassigned Players */}
-          <div className="space-y-2">
-            <h3 className="font-bold text-lg">Unassigned Players</h3>
-            <div
-              onDragOver={handleDragOver}
-              onDrop={handleDropUnassigned}
-              className="border-2 border-dashed border-gray-300 rounded-lg p-4 min-h-[100px] bg-gray-50"
+            {/* Unassigned Players */}
+            <DroppableUnassignedZone unassigned={unassigned} allPlayers={allPlayers} />
+
+            {/* Save Button */}
+            <Button
+              onClick={() => changeTeamsMutation.mutate()}
+              disabled={changeTeamsMutation.isPending || teamA.length !== 5 || teamB.length !== 5 || teamC.length !== 5}
+              className="w-full"
             >
-              <div className="flex flex-wrap gap-2">
-                {unassigned.map((playerId) => (
-                  <div
-                    key={playerId}
-                    draggable
-                    onDragStart={() => handleDragStart(playerId)}
-                    className="bg-white px-3 py-1 rounded border border-gray-200 cursor-move hover:bg-gray-50"
-                  >
-                    {getPlayerName(playerId, allPlayers)}
-                  </div>
-                ))}
+              {changeTeamsMutation.isPending ? "Saving..." : "Save Teams"}
+            </Button>
+
+            {(teamA.length !== 5 || teamB.length !== 5 || teamC.length !== 5) && (
+              <div className="text-sm text-red-600 text-center">
+                Each team must have exactly 5 players. Team A: {teamA.length}, Team B: {teamB.length}, Team C: {teamC.length}
               </div>
-            </div>
+            )}
           </div>
-
-          {/* Save Button */}
-          <Button
-            onClick={() => changeTeamsMutation.mutate()}
-            disabled={changeTeamsMutation.isPending || teamA.length !== 5 || teamB.length !== 5 || teamC.length !== 5}
-            className="w-full"
-          >
-            {changeTeamsMutation.isPending ? "Saving..." : "Save Teams"}
-          </Button>
-
-          {(teamA.length !== 5 || teamB.length !== 5 || teamC.length !== 5) && (
-            <div className="text-sm text-red-600 text-center">
-              Each team must have exactly 5 players. Team A: {teamA.length}, Team B: {teamB.length}, Team C: {teamC.length}
-            </div>
-          )}
-        </div>
+        </DndContext>
       </DialogContent>
     </Dialog>
   )
