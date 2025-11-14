@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { ScoreboardTable } from "@/components/scoreboard-table"
 import { AddPlayerModal } from "@/components/add-player-modal"
@@ -7,7 +8,8 @@ import { ChangeTeamsModal } from "@/components/change-teams-modal"
 import { AddGameModal } from "@/components/add-game-modal"
 import { GameHistoryModal } from "@/components/game-history-modal"
 import { Button } from "@/components/ui/button"
-import { RefreshCw } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { RefreshCw, Lock, Unlock } from "lucide-react"
 
 interface ScoreboardEntry {
   playerId: number
@@ -30,6 +32,11 @@ const fetchScoreboard = async (): Promise<ScoreboardEntry[]> => {
 
 export default function Home() {
   const queryClient = useQueryClient()
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [password, setPassword] = useState("")
+  const [authError, setAuthError] = useState("")
+  const [isVerifying, setIsVerifying] = useState(false)
+
   const { data: scoreboard = [], isLoading: loading, error, refetch } = useQuery({
     queryKey: ["scoreboard"],
     queryFn: fetchScoreboard,
@@ -51,6 +58,52 @@ export default function Home() {
       refetch()
     },
   })
+
+  const verifyPassword = async () => {
+    if (!password.trim()) {
+      setAuthError("Please enter a password")
+      return
+    }
+
+    setIsVerifying(true)
+    setAuthError("")
+
+    try {
+      const response = await fetch("/api/auth/verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setIsAuthenticated(true)
+        setPassword("")
+        setAuthError("")
+      } else {
+        setAuthError("Invalid password")
+      }
+    } catch (err) {
+      setAuthError("Failed to verify password")
+    } finally {
+      setIsVerifying(false)
+    }
+  }
+
+  const handlePasswordKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      verifyPassword()
+    }
+  }
+
+  const handleLock = () => {
+    setIsAuthenticated(false)
+    setPassword("")
+    setAuthError("")
+  }
 
   return (
     <div className="min-h-screen bg-background p-4 sm:p-8">
@@ -85,19 +138,56 @@ export default function Home() {
           )}
         </main>
 
-        {/* Action Buttons */}
-        <div className="flex justify-center gap-4 flex-wrap">
-          <AddPlayerModal onPlayerAdded={() => refetch()} />
-          <ChangeTeamsModal />
-          <AddGameModal />
-          <Button
-            onClick={() => recomputeEloMutation.mutate()}
-            disabled={recomputeEloMutation.isPending}
-            variant="outline"
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            {recomputeEloMutation.isPending ? "Computing..." : "Recompute ELO"}
-          </Button>
+        {/* Admin Section */}
+        <div className="flex justify-center gap-4 flex-wrap items-center">
+          {!isAuthenticated ? (
+            <div className="flex flex-col items-center gap-2 w-full max-w-md">
+              <div className="flex gap-2 w-full">
+                <Input
+                  type="password"
+                  placeholder="Enter admin password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={handlePasswordKeyDown}
+                  disabled={isVerifying}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={verifyPassword}
+                  disabled={isVerifying}
+                  variant="default"
+                >
+                  <Unlock className="mr-2 h-4 w-4" />
+                  {isVerifying ? "Verifying..." : "Unlock"}
+                </Button>
+              </div>
+              {authError && (
+                <p className="text-sm text-red-600">{authError}</p>
+              )}
+            </div>
+          ) : (
+            <>
+              <AddPlayerModal onPlayerAdded={() => refetch()} />
+              <ChangeTeamsModal />
+              <AddGameModal />
+              <Button
+                onClick={() => recomputeEloMutation.mutate()}
+                disabled={recomputeEloMutation.isPending}
+                variant="outline"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {recomputeEloMutation.isPending ? "Computing..." : "Recompute ELO"}
+              </Button>
+              <Button
+                onClick={handleLock}
+                variant="outline"
+                size="icon"
+                title="Lock admin controls"
+              >
+                <Lock className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>
