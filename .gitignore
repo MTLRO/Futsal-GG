@@ -46,6 +46,12 @@ backups/
 *.sql
 *.sql.gz
 
+# VPS Sync Scripts (contain credentials)
+sync-db-from-vps.sh
+sync-db-from-vps.bat
+SYNC_DATABASE_INSTRUCTIONS.md
+set-admin-password.ts
+
 # Logs
 logs/
 *.log
