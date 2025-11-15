@@ -113,7 +113,6 @@ export default function Home() {
           <h1 className="text-4xl sm:text-5xl font-bold text-primary mb-2">
             Futsal GG
           </h1>
-          <p className="text-muted-foreground">Scoreboard</p>
         </header>
 
         {/* Game History Button */}
@@ -121,28 +120,29 @@ export default function Home() {
           <GameHistoryModal />
         </div>
 
-        {/* Scoreboard */}
-        <main className="mb-8">
-          {loading ? (
-            <div className="flex justify-center items-center py-20">
-              <div className="text-muted-foreground">Loading scoreboard...</div>
-            </div>
-          ) : error ? (
-            <div className="flex justify-center items-center py-20">
-              <div className="text-red-600">
-                Error: {error.message}
+        {/* Scoreboard and Admin Section Container */}
+        <div className="w-fit mx-auto">
+          {/* Scoreboard */}
+          <main className="mb-8">
+            {loading ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="text-muted-foreground">Loading scoreboard...</div>
               </div>
-            </div>
-          ) : (
-            <ScoreboardTable data={scoreboard} />
-          )}
-        </main>
+            ) : error ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="text-red-600">
+                  Error: {error.message}
+                </div>
+              </div>
+            ) : (
+              <ScoreboardTable data={scoreboard} />
+            )}
+          </main>
 
-        {/* Admin Section */}
-        <div className="flex justify-center gap-4 flex-wrap items-center">
-          {!isAuthenticated ? (
-            <div className="flex flex-col items-center gap-2 w-full max-w-md">
-              <div className="flex gap-2 w-full">
+          {/* Admin Section */}
+          <div className="flex flex-col gap-2 w-full">
+            {!isAuthenticated ? (
+              <div className="flex flex-col gap-2 w-full">
                 <Input
                   type="password"
                   placeholder="Enter admin password"
@@ -150,44 +150,47 @@ export default function Home() {
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={handlePasswordKeyDown}
                   disabled={isVerifying}
-                  className="flex-1"
+                  className="w-full"
                 />
                 <Button
                   onClick={verifyPassword}
                   disabled={isVerifying}
                   variant="default"
+                  className="w-full"
                 >
                   <Unlock className="mr-2 h-4 w-4" />
                   {isVerifying ? "Verifying..." : "Unlock"}
                 </Button>
+                {authError && (
+                  <p className="text-sm text-red-600">{authError}</p>
+                )}
               </div>
-              {authError && (
-                <p className="text-sm text-red-600">{authError}</p>
-              )}
-            </div>
-          ) : (
-            <>
-              <AddPlayerModal onPlayerAdded={() => refetch()} />
-              <ChangeTeamsModal />
-              <AddGameModal />
-              <Button
-                onClick={() => recomputeEloMutation.mutate()}
-                disabled={recomputeEloMutation.isPending}
-                variant="outline"
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                {recomputeEloMutation.isPending ? "Computing..." : "Recompute ELO"}
-              </Button>
-              <Button
-                onClick={handleLock}
-                variant="outline"
-                size="icon"
-                title="Lock admin controls"
-              >
-                <Lock className="h-4 w-4" />
-              </Button>
-            </>
-          )}
+            ) : (
+              <>
+                <AddPlayerModal onPlayerAdded={() => refetch()} />
+                <ChangeTeamsModal />
+                <AddGameModal />
+                <Button
+                  onClick={() => recomputeEloMutation.mutate()}
+                  disabled={recomputeEloMutation.isPending}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  {recomputeEloMutation.isPending ? "Computing..." : "Recompute ELO"}
+                </Button>
+                <Button
+                  onClick={handleLock}
+                  variant="outline"
+                  className="w-full"
+                  title="Lock admin controls"
+                >
+                  <Lock className="mr-2 h-4 w-4" />
+                  Lock
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
