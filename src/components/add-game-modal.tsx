@@ -246,6 +246,7 @@ export function AddGameModal() {
                       key={team}
                       onClick={() => setHomeTeam(team as "A" | "B" | "C")}
                       variant={homeTeam === team ? "default" : "outline"}
+                      disabled={awayTeam === team}
                       className="flex-1 min-h-[44px]"
                     >
                       {getTeamDisplayName(team as "A" | "B" | "C")}
@@ -261,6 +262,7 @@ export function AddGameModal() {
                       key={team}
                       onClick={() => setAwayTeam(team as "A" | "B" | "C")}
                       variant={awayTeam === team ? "default" : "outline"}
+                      disabled={homeTeam === team}
                       className="flex-1 min-h-[44px]"
                     >
                       {getTeamDisplayName(team as "A" | "B" | "C")}
@@ -269,9 +271,6 @@ export function AddGameModal() {
                 </div>
               </div>
             </div>
-            {homeTeam === awayTeam && homeTeam && (
-              <div className="text-sm text-red-600">Home and Away teams must be different</div>
-            )}
           </div>
 
           {/* Teams Grid */}
