@@ -6,6 +6,7 @@ import { ScoreboardTable } from "@/components/scoreboard-table"
 import { AddPlayerModal } from "@/components/add-player-modal"
 import { ChangeTeamsModal } from "@/components/change-teams-modal"
 import { AddGameModal } from "@/components/add-game-modal"
+import { AddVideoModal } from "@/components/add-video-modal"
 import { GameHistoryModal } from "@/components/game-history-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -170,6 +171,7 @@ export default function Home() {
                 <AddPlayerModal onPlayerAdded={() => refetch()} />
                 <ChangeTeamsModal />
                 <AddGameModal />
+                <AddVideoModal />
                 <Button
                   onClick={() => recomputeEloMutation.mutate()}
                   disabled={recomputeEloMutation.isPending}
