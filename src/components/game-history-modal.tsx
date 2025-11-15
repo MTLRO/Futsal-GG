@@ -115,7 +115,7 @@ export function GameHistoryModal() {
           Game History
         </Button>
       </DialogTrigger>
-      <DialogContent className="w-full max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-auto sm:max-w-2xl lg:max-w-4xl p-0">
+      <DialogContent className="w-full max-w-[calc(100vw-2rem)] max-h-[90vh] overflow-auto sm:max-w-2xl lg:max-w-4xl p-0 [&>button]:fixed [&>button]:z-50">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle className="text-center">Game History</DialogTitle>
         </DialogHeader>

@@ -64,7 +64,7 @@ export function AddPlayerModal({ onPlayerAdded }: AddPlayerModalProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" className="gap-2 min-h-[48px]">
+        <Button size="lg" className="gap-2 min-h-[48px] w-full">
           <UserPlus className="h-5 w-5" />
           Add Player
         </Button>

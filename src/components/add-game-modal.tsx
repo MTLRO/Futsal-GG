@@ -194,7 +194,7 @@ export function AddGameModal() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" className="gap-2 min-h-[48px]">
+        <Button size="lg" className="gap-2 min-h-[48px] w-full">
           Add Game
         </Button>
       </DialogTrigger>

@@ -307,7 +307,7 @@ export function ChangeTeamsModal() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" className="gap-2 min-h-[48px]">
+        <Button size="lg" className="gap-2 min-h-[48px] w-full">
           <Users className="h-5 w-5" />
           Change Teams
         </Button>
