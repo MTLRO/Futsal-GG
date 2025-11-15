@@ -1,82 +1,47 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+interface GameUpdate {
+  gameId: number;
+  timestamp: number;
+}
+
 /**
  * POST /api/games/add-video
  *
- * Add YouTube URL to all games on a specific date with timestamps
+ * Add YouTube URL to games with manual timestamps
  *
  * Request body:
  * {
  *   youtubeUrl: string,
- *   date: string (YYYY-MM-DD),
- *   videoStartOffset: number (seconds, can be negative)
+ *   gameUpdates: Array<{gameId: number, timestamp: number}>
  * }
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { youtubeUrl, date, videoStartOffset } = body;
+    const { youtubeUrl, gameUpdates } = body;
 
     // Validate input
-    if (!youtubeUrl || !date) {
+    if (!youtubeUrl || !Array.isArray(gameUpdates) || gameUpdates.length === 0) {
       return NextResponse.json(
-        { error: "YouTube URL and date are required" },
+        { error: "YouTube URL and gameUpdates array are required" },
         { status: 400 }
       );
     }
 
-    // Parse the date and create Eastern Time range for that day
-    // Eastern Time is UTC-5 (EST) or UTC-4 (EDT)
-    const dateObj = new Date(date + "T00:00:00");
-
-    // Convert to Eastern Time
-    // We'll search for games that fall on this date in Eastern time
-    // To do this properly, we need to create a date range
-    const startOfDayET = new Date(date + "T00:00:00-05:00"); // Assume EST for start
-    const endOfDayET = new Date(date + "T23:59:59-05:00"); // Assume EST for end
-
-    // Find all games on this date
-    const gamesOnDate = await prisma.game.findMany({
-      where: {
-        startDateTime: {
-          gte: startOfDayET,
-          lte: endOfDayET,
-        },
-      },
-      orderBy: {
-        startDateTime: "asc",
-      },
-    });
-
-    if (gamesOnDate.length === 0) {
-      return NextResponse.json(
-        { error: "No games found on this date" },
-        { status: 404 }
-      );
-    }
-
     // Process each game and add timestamped YouTube URLs
-    const offset = parseInt(String(videoStartOffset)) || 0;
-    const firstGameStartTime = new Date(gamesOnDate[0].startDateTime).getTime();
-
-    for (let i = 0; i < gamesOnDate.length; i++) {
-      const game = gamesOnDate[i];
-
-      // Calculate timestamp for this game in the video
-      // Time elapsed from first game start + user's offset
-      const gameStartTime = new Date(game.startDateTime).getTime();
-      const elapsedSeconds = Math.floor((gameStartTime - firstGameStartTime) / 1000);
-      const videoTimestamp = offset + elapsedSeconds;
+    for (const update of gameUpdates) {
+      const { gameId, timestamp } = update as GameUpdate;
 
       // Build the YouTube URL with timestamp
       let videoUrl = youtubeUrl;
 
-      // Add timestamp parameter if we have a positive time
-      if (videoTimestamp > 0) {
+      // Add timestamp parameter
+      if (timestamp > 0) {
         const separator = youtubeUrl.includes("?") ? "&" : "?";
-        videoUrl = `${youtubeUrl}${separator}t=${videoTimestamp}`;
-      } else if (videoTimestamp <= 0) {
+        videoUrl = `${youtubeUrl}${separator}t=${timestamp}`;
+      } else {
         // If zero or negative, set to t=0
         const separator = youtubeUrl.includes("?") ? "&" : "?";
         videoUrl = `${youtubeUrl}${separator}t=0`;
@@ -84,7 +49,7 @@ export async function POST(request: Request) {
 
       // Update the game with the video link
       await prisma.game.update({
-        where: { id: game.id },
+        where: { id: gameId },
         data: { videoLink: videoUrl },
       });
     }
@@ -92,8 +57,8 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: true,
-        gamesUpdated: gamesOnDate.length,
-        message: `Successfully added video to ${gamesOnDate.length} game(s)`
+        gamesUpdated: gameUpdates.length,
+        message: `Successfully added video to ${gameUpdates.length} game(s)`
       },
       { status: 200 }
     );
