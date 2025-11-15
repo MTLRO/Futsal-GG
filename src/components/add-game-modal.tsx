@@ -132,13 +132,40 @@ export function AddGameModal() {
     return player ? `${player.name} ${player.lastName}` : "Unknown"
   }
 
+  const getHighestEloPlayerName = (playerIds: number[]): string | null => {
+    if (playerIds.length === 0) return null
+
+    let highestEloPlayer: Player | null = null
+    let highestElo = -1
+
+    for (const playerId of playerIds) {
+      const player = allPlayers.find((p) => p.id === playerId)
+      if (player && player.elo > highestElo) {
+        highestElo = player.elo
+        highestEloPlayer = player
+      }
+    }
+
+    return highestEloPlayer ? highestEloPlayer.name : null
+  }
+
+  const getTeamDisplayName = (teamLetter: "A" | "B" | "C"): string => {
+    if (!teamsData) return `Team ${teamLetter}`
+
+    const teamPlayers =
+      teamLetter === "A" ? teamsData.teamA :
+      teamLetter === "B" ? teamsData.teamB :
+      teamsData.teamC
+
+    const highestEloPlayerName = getHighestEloPlayerName(teamPlayers)
+    return highestEloPlayerName ? `Team ${highestEloPlayerName}` : `Team ${teamLetter}`
+  }
+
   const TeamColumn = ({
     teamLetter,
-    side,
     isHome,
   }: {
     teamLetter: "A" | "B" | "C"
-    side: "Home" | "Away"
     isHome: boolean
   }) => {
     if (!teamsData) return null
@@ -154,10 +181,13 @@ export function AddGameModal() {
       setGoalsMap((prev) => ({ ...prev, [playerId]: newGoals }))
     }
 
+    const highestEloPlayerName = getHighestEloPlayerName(teamPlayers)
+    const teamDisplayName = highestEloPlayerName ? `Team ${highestEloPlayerName}` : `Team ${teamLetter}`
+
     return (
       <div className="flex flex-col gap-2">
         <h3 className="font-bold text-lg text-center">
-          Team {teamLetter} ({side})
+          {teamDisplayName}
         </h3>
         <div className="border-2 border-dashed border-primary rounded-lg p-4 min-h-[400px] bg-secondary/50">
           <div className="space-y-3">
@@ -216,9 +246,10 @@ export function AddGameModal() {
                       key={team}
                       onClick={() => setHomeTeam(team as "A" | "B" | "C")}
                       variant={homeTeam === team ? "default" : "outline"}
+                      disabled={awayTeam === team}
                       className="flex-1 min-h-[44px]"
                     >
-                      Team {team}
+                      {getTeamDisplayName(team as "A" | "B" | "C")}
                     </Button>
                   ))}
                 </div>
@@ -231,24 +262,22 @@ export function AddGameModal() {
                       key={team}
                       onClick={() => setAwayTeam(team as "A" | "B" | "C")}
                       variant={awayTeam === team ? "default" : "outline"}
+                      disabled={homeTeam === team}
                       className="flex-1 min-h-[44px]"
                     >
-                      Team {team}
+                      {getTeamDisplayName(team as "A" | "B" | "C")}
                     </Button>
                   ))}
                 </div>
               </div>
             </div>
-            {homeTeam === awayTeam && homeTeam && (
-              <div className="text-sm text-red-600">Home and Away teams must be different</div>
-            )}
           </div>
 
           {/* Teams Grid */}
           {homeTeam && awayTeam && homeTeam !== awayTeam && (
             <div className="flex flex-col gap-4 sm:gap-6">
-              <TeamColumn teamLetter={homeTeam} side="Home" isHome={true} />
-              <TeamColumn teamLetter={awayTeam} side="Away" isHome={false} />
+              <TeamColumn teamLetter={homeTeam} isHome={true} />
+              <TeamColumn teamLetter={awayTeam} isHome={false} />
             </div>
           )}
 

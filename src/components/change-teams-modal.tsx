@@ -54,6 +54,23 @@ function calculateAverageElo(playerIds: number[], allPlayers: Player[]): number 
   return Math.round(totalElo / playerIds.length)
 }
 
+function getHighestEloPlayerName(playerIds: number[], allPlayers: Player[]): string | null {
+  if (playerIds.length === 0) return null
+
+  let highestEloPlayer: Player | null = null
+  let highestElo = -1
+
+  for (const playerId of playerIds) {
+    const player = allPlayers.find((p) => p.id === playerId)
+    if (player && player.elo > highestElo) {
+      highestElo = player.elo
+      highestEloPlayer = player
+    }
+  }
+
+  return highestEloPlayer ? highestEloPlayer.name : null
+}
+
 // Player Card Component (for display only)
 function PlayerCard({ playerName, className = "" }: { playerName: string; className?: string }) {
   return (
@@ -109,11 +126,13 @@ function DroppableTeamZone({
   })
 
   const avgElo = calculateAverageElo(team, allPlayers)
+  const highestEloPlayerName = getHighestEloPlayerName(team, allPlayers)
+  const teamDisplayName = highestEloPlayerName ? `Team ${highestEloPlayerName}` : `Team ${teamLetter}`
 
   return (
     <div ref={setNodeRef} className="flex flex-col gap-2">
       <div className="text-center">
-        <h3 className="font-bold text-lg">Team {teamLetter}</h3>
+        <h3 className="font-bold text-lg">{teamDisplayName}</h3>
         <p className="text-sm text-muted-foreground">
           Avg ELO: {avgElo > 0 ? avgElo : "—"} {team.length > 0 && `(${team.length} player${team.length !== 1 ? 's' : ''})`}
         </p>
