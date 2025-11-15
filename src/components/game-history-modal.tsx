@@ -11,10 +11,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { History, ChevronDown, ChevronUp, Video, Trophy, ArrowUp, ArrowDown, Minus } from "lucide-react"
+import { History, ArrowUp, ArrowDown, Minus } from "lucide-react"
+import { GameCard } from "./game-card"
 
 interface Player {
   name: string
@@ -84,6 +83,17 @@ export function GameHistoryModal() {
 
   const getFatigueConfig = (gameInARow: number) => {
     if (gameInARow === 1) {
+<<<<<<< HEAD
+      return { width: 100, bgColor: "bg-green-100/30", textColor: "text-green-700", label: "Fresh" }
+    } else if (gameInARow === 2) {
+      return { width: 75, bgColor: "bg-yellow-100/30", textColor: "text-yellow-700", label: "2nd game" }
+    } else if (gameInARow === 3) {
+      return { width: 50, bgColor: "bg-orange-100/30", textColor: "text-orange-700", label: "3rd game" }
+    } else if (gameInARow === 4) {
+      return { width: 35, bgColor: "bg-red-100/30", textColor: "text-red-700", label: "4th game" }
+    } else {
+      return { width: 20, bgColor: "bg-red-200/30", textColor: "text-red-800", label: `${gameInARow}th game` }
+=======
       return { width: 100, bgColor: "bg-green-100/60", textColor: "text-green-700", label: "Fresh" }
     } else if (gameInARow === 2) {
       return { width: 75, bgColor: "bg-yellow-100/60", textColor: "text-yellow-700", label: "2nd game" }
@@ -93,6 +103,7 @@ export function GameHistoryModal() {
       return { width: 35, bgColor: "bg-red-100/60", textColor: "text-red-700", label: "4th game" }
     } else {
       return { width: 20, bgColor: "bg-red-200/70", textColor: "text-red-800", label: `${gameInARow}th game` }
+>>>>>>> origin/master
     }
   }
 
@@ -172,6 +183,8 @@ export function GameHistoryModal() {
   )
 }
 
+<<<<<<< HEAD
+=======
 interface GameCardProps {
   game: GameHistoryEntry
   isTeam1Winner: boolean
@@ -355,3 +368,4 @@ function PlayerRow({ player, getFatigueConfig, getEloIcon, getEloColor }: Player
     </div>
   )
 }
+>>>>>>> origin/master
