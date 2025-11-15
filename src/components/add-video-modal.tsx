@@ -29,6 +29,23 @@ export function AddVideoModal() {
   const [isLoadingGames, setIsLoadingGames] = useState(false)
   const [gamesError, setGamesError] = useState("")
 
+  // Extract timestamp from YouTube URL (e.g., ?t=123 or &t=123)
+  const extractTimestampFromUrl = (url: string | null): number | null => {
+    if (!url) return null
+
+    try {
+      const urlObj = new URL(url)
+      const timestampParam = urlObj.searchParams.get('t')
+      if (timestampParam) {
+        const timestamp = parseInt(timestampParam)
+        return isNaN(timestamp) ? null : timestamp
+      }
+    } catch {
+      // Invalid URL, ignore
+    }
+    return null
+  }
+
   // Fetch games when date changes
   useEffect(() => {
     const fetchGames = async () => {
@@ -64,10 +81,14 @@ export function AddVideoModal() {
           const elapsedSeconds = Math.floor((gameStartTime - firstGameStartTime) / 1000)
           const calculatedTimestamp = offset + elapsedSeconds
 
+          // Check if game already has a video link with timestamp
+          const existingTimestamp = extractTimestampFromUrl(game.videoLink)
+
           return {
             ...game,
             calculatedTimestamp,
-            manualTimestamp: String(Math.max(0, calculatedTimestamp)),
+            // Use existing timestamp if available, otherwise use calculated
+            manualTimestamp: String(existingTimestamp ?? Math.max(0, calculatedTimestamp)),
           }
         })
 
@@ -236,23 +257,43 @@ export function AddVideoModal() {
               </div>
 
               <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-                {games.map((game, index) => (
-                  <div
-                    key={game.id}
-                    className="bg-secondary/30 border border-secondary rounded-lg p-3 space-y-2"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">Game {index + 1}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Start time: {formatTime(game.startDateTime)}
-                        </p>
-                        {game.calculatedTimestamp !== parseInt(game.manualTimestamp) && (
-                          <p className="text-xs text-blue-600">
-                            Auto: {formatTimestamp(game.calculatedTimestamp)}
+                {games.map((game, index) => {
+                  const hasExistingVideo = !!game.videoLink
+                  const existingTimestamp = extractTimestampFromUrl(game.videoLink)
+
+                  return (
+                    <div
+                      key={game.id}
+                      className={`border rounded-lg p-3 space-y-2 ${
+                        hasExistingVideo
+                          ? "bg-green-50/50 border-green-200"
+                          : "bg-secondary/30 border-secondary"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm">Game {index + 1}</p>
+                            {hasExistingVideo && (
+                              <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded">
+                                Has Video
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Start time: {formatTime(game.startDateTime)}
                           </p>
-                        )}
-                      </div>
+                          {hasExistingVideo && existingTimestamp !== null && (
+                            <p className="text-xs text-green-700">
+                              Current: {formatTimestamp(existingTimestamp)}
+                            </p>
+                          )}
+                          {game.calculatedTimestamp !== parseInt(game.manualTimestamp) && (
+                            <p className="text-xs text-blue-600">
+                              Auto: {formatTimestamp(game.calculatedTimestamp)}
+                            </p>
+                          )}
+                        </div>
                       <div className="flex flex-col gap-1 items-end">
                         <label className="text-xs font-medium">Timestamp (s)</label>
                         <Input
@@ -268,7 +309,8 @@ export function AddVideoModal() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
