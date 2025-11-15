@@ -11,6 +11,7 @@ interface Player {
   id: number
   name: string
   lastName: string
+  elo: number
 }
 
 interface TeamsData {
