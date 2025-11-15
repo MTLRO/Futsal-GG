@@ -132,6 +132,35 @@ export function AddGameModal() {
     return player ? `${player.name} ${player.lastName}` : "Unknown"
   }
 
+  const getHighestEloPlayerName = (playerIds: number[]): string | null => {
+    if (playerIds.length === 0) return null
+
+    let highestEloPlayer: Player | null = null
+    let highestElo = -1
+
+    for (const playerId of playerIds) {
+      const player = allPlayers.find((p) => p.id === playerId)
+      if (player && player.elo > highestElo) {
+        highestElo = player.elo
+        highestEloPlayer = player
+      }
+    }
+
+    return highestEloPlayer ? highestEloPlayer.name : null
+  }
+
+  const getTeamDisplayName = (teamLetter: "A" | "B" | "C"): string => {
+    if (!teamsData) return `Team ${teamLetter}`
+
+    const teamPlayers =
+      teamLetter === "A" ? teamsData.teamA :
+      teamLetter === "B" ? teamsData.teamB :
+      teamsData.teamC
+
+    const highestEloPlayerName = getHighestEloPlayerName(teamPlayers)
+    return highestEloPlayerName ? `Team ${highestEloPlayerName}` : `Team ${teamLetter}`
+  }
+
   const TeamColumn = ({
     teamLetter,
     side,
@@ -154,10 +183,13 @@ export function AddGameModal() {
       setGoalsMap((prev) => ({ ...prev, [playerId]: newGoals }))
     }
 
+    const highestEloPlayerName = getHighestEloPlayerName(teamPlayers)
+    const teamDisplayName = highestEloPlayerName ? `Team ${highestEloPlayerName}` : `Team ${teamLetter}`
+
     return (
       <div className="flex flex-col gap-2">
         <h3 className="font-bold text-lg text-center">
-          Team {teamLetter} ({side})
+          {teamDisplayName} ({side})
         </h3>
         <div className="border-2 border-dashed border-primary rounded-lg p-4 min-h-[400px] bg-secondary/50">
           <div className="space-y-3">
@@ -218,7 +250,7 @@ export function AddGameModal() {
                       variant={homeTeam === team ? "default" : "outline"}
                       className="flex-1 min-h-[44px]"
                     >
-                      Team {team}
+                      {getTeamDisplayName(team as "A" | "B" | "C")}
                     </Button>
                   ))}
                 </div>
@@ -233,7 +265,7 @@ export function AddGameModal() {
                       variant={awayTeam === team ? "default" : "outline"}
                       className="flex-1 min-h-[44px]"
                     >
-                      Team {team}
+                      {getTeamDisplayName(team as "A" | "B" | "C")}
                     </Button>
                   ))}
                 </div>
