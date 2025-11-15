@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ChevronDown, ChevronUp, Video, Trophy } from "lucide-react"
+import { ChevronDown, Video, Trophy } from "lucide-react"
 
 interface Player {
   name: string
