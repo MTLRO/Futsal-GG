@@ -98,6 +98,7 @@ export function ScoreboardTable({ data }: ScoreboardTableProps) {
           key={selectedPlayerId}
           playerId={selectedPlayerId}
           playerName={selectedPlayerName}
+          onClose={() => setSelectedPlayerId(null)}
         />
       )}
     </div>
