@@ -163,11 +163,9 @@ export function AddGameModal() {
 
   const TeamColumn = ({
     teamLetter,
-    side,
     isHome,
   }: {
     teamLetter: "A" | "B" | "C"
-    side: "Home" | "Away"
     isHome: boolean
   }) => {
     if (!teamsData) return null
@@ -189,7 +187,7 @@ export function AddGameModal() {
     return (
       <div className="flex flex-col gap-2">
         <h3 className="font-bold text-lg text-center">
-          {teamDisplayName} ({side})
+          {teamDisplayName}
         </h3>
         <div className="border-2 border-dashed border-primary rounded-lg p-4 min-h-[400px] bg-secondary/50">
           <div className="space-y-3">
@@ -279,8 +277,8 @@ export function AddGameModal() {
           {/* Teams Grid */}
           {homeTeam && awayTeam && homeTeam !== awayTeam && (
             <div className="flex flex-col gap-4 sm:gap-6">
-              <TeamColumn teamLetter={homeTeam} side="Home" isHome={true} />
-              <TeamColumn teamLetter={awayTeam} side="Away" isHome={false} />
+              <TeamColumn teamLetter={homeTeam} isHome={true} />
+              <TeamColumn teamLetter={awayTeam} isHome={false} />
             </div>
           )}
 
