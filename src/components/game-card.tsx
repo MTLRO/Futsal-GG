@@ -120,30 +120,30 @@ export function GameCard({
     <Card className="relative overflow-hidden p-0 transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1 hover:shadow-xl">
       {/* Glassy gradient top bar */}
       <div className={`absolute top-0 left-0 right-0 h-1 ${getTopBarGradient()} backdrop-blur-sm`} />
+
+      {/* Header: Time and Video Button - Outside collapsible */}
+      <div className="p-4 pb-0">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1">
+            <div className="text-sm font-medium">{formatTime(game.dateTime)}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{formatDuration(game.timePlayed)}</div>
+          </div>
+          {game.videoLink && (
+            <button
+              onClick={() => setIsPasswordModalOpen(true)}
+              className="flex items-center justify-center w-11 h-11 rounded-lg border border-border bg-background hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
+              aria-label="Watch game video"
+            >
+              <Video className="w-5 h-5 text-blue-600" />
+            </button>
+          )}
+        </div>
+      </div>
+
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <CollapsibleTrigger asChild>
           <button className="w-full text-left cursor-pointer hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset">
-            <div className="p-4 space-y-3">
-              {/* Header: Time and Video Button */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1">
-                  <div className="text-sm font-medium">{formatTime(game.dateTime)}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{formatDuration(game.timePlayed)}</div>
-                </div>
-                {game.videoLink && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setIsPasswordModalOpen(true)
-                    }}
-                    className="flex items-center justify-center w-11 h-11 rounded-lg border border-border bg-background hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
-                    aria-label="Watch game video"
-                  >
-                    <Video className="w-5 h-5 text-blue-600" />
-                  </button>
-                )}
-              </div>
-
+            <div className="p-4 pt-3 space-y-3">
               {/* Score Section */}
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 text-xl tracking-wide mb-1.5">
