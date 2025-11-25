@@ -28,45 +28,86 @@ export class Player {
         this.qFactor = this.getQFactor();
     }
 
-
-    public getDecisiveness(game : Game): number {
-        const playerGoals = this.goalsScored;
-        const playerTeamWon = game.didPlayerWin(this);
-
-        // Find which team the player is on
+    private findTeam(game: Game) {
         const homeTeam = game.getHomeTeam();
         const awayTeam = game.getAwayTeam();
-        const isHomeTeam = homeTeam.players.some(p => p.playerId === this.playerId);
 
-        const playerTeam = isHomeTeam ? homeTeam : awayTeam;
-        const opponentTeam = isHomeTeam ? awayTeam : homeTeam;
-
-        const playerTeamTotalGoals = playerTeam.getGoalsScored();
-        const opponentTeamGoals = opponentTeam.getGoalsScored();
-        const playerTeamTotalGoalsWithoutPlayer = playerTeamTotalGoals - this.goalsScored;
-
-        if (playerGoals === 0) {
-            return playerTeamWon ? EloParameters.NO_GOALS_WINNER_DECISIVENESS : EloParameters.NO_GOALS_LOSER_DECISIVENESS;
-        }
-
-        const resultWithoutPlayer = playerTeamTotalGoalsWithoutPlayer - opponentTeamGoals;
-        const resultWithPlayer = playerTeamTotalGoals - opponentTeamGoals;
-
-        const goalContribution = playerGoals;
-        const scaledGoalContribution = Math.cbrt(goalContribution + 1);
-
-        if (resultWithoutPlayer < 0 && resultWithPlayer >= 0) {
-            return EloParameters.CLUTCH_LOSS_TO_WIN_MULTIPLIER * scaledGoalContribution;
-        } else if (resultWithoutPlayer === 0 && resultWithPlayer > 0) {
-            return EloParameters.CLUTCH_DRAW_TO_WIN_MULTIPLIER * scaledGoalContribution;
-        } else if (resultWithoutPlayer > 0 && resultWithPlayer > resultWithoutPlayer) {
-            return EloParameters.CLUTCH_WIN_IMPROVEMENT_MULTIPLIER * scaledGoalContribution;
-        } else if (playerTeamWon && playerGoals === playerTeamTotalGoals) {
-            return EloParameters.SOLO_SCORER_MULTIPLIER * scaledGoalContribution;
-        } else {
-            return scaledGoalContribution;
-        }
+        return homeTeam.players.some(p => p.playerId === this.playerId)
+            ? homeTeam
+            : awayTeam;
     }
+
+    public getDecisiveness(game: Game): number {
+        const playerGoals = this.goalsScored;
+
+        const team = this.findTeam(game);
+        const opponentTeam = team === game.getHomeTeam()
+            ? game.getAwayTeam()
+            : game.getHomeTeam();
+
+        const teammatesGoals = team.getGoalsScored() - playerGoals;
+        const opponentGoals = opponentTeam.getGoalsScored();
+
+
+        // Determine result swing without the player
+        const resultWithoutPlayer = teammatesGoals - opponentGoals;
+        const resultWithPlayer = team.getGoalsScored() - opponentGoals;
+
+        const playerWon = game.didPlayerWin(this);
+        const teamGoals = team.getGoalsScored();
+        const isDraw = teamGoals === opponentGoals;
+
+        let multiplier: number;
+
+        if (resultWithoutPlayer < 0 && resultWithPlayer > 0) {
+            // Player turned a loss into a win
+            multiplier = EloParameters.LOSS_TO_WIN;
+        } else if (resultWithoutPlayer < 0 && resultWithPlayer === 0) {
+            // Player turned a loss into a tie
+            multiplier = EloParameters.LOSS_TO_TIE;
+        } else if (resultWithoutPlayer === 0 && resultWithPlayer > 0) {
+            // Player turned a tie into a win
+            multiplier = EloParameters.TIE_TO_WIN;
+        } else {
+            // No significant impact
+            multiplier = EloParameters.NO_IMPACT;
+        }
+
+        // Final decisiveness formula
+        let decisiveness: number;
+
+        if (!playerWon && !isDraw) {
+            // Player's team lost (not a draw)
+            const impact = opponentGoals - teammatesGoals;
+            decisiveness = Math.max(EloParameters.NO_IMPACT, Math.sqrt((playerGoals + 1) * impact));
+        } else {
+            // Win or draw - use square root for more pronounced differences
+            // Higher formula values = more impact = more ELO when winning, less loss when losing
+            decisiveness = Math.sqrt((playerGoals + 1 + opponentGoals) / (teammatesGoals + 1)) * multiplier;
+        }
+
+        // Defensive bonus for non-scorers when team didn't concede much
+        if (playerGoals === 0 && (playerWon || isDraw)) {
+            let defensiveBonus = 0;
+
+            if (opponentGoals === 0) {
+                // Clean sheet - strong defensive contribution
+                defensiveBonus = 0.9;
+            } else if (opponentGoals === 1) {
+                // Conceded only 1 goal - good defensive contribution
+                defensiveBonus = 0.55;
+            } else if (opponentGoals === 2) {
+                // Conceded 2 goals - moderate defensive contribution
+                defensiveBonus = 0.2;
+            }
+
+            // Apply defensive bonus to bring decisiveness above NO_IMPACT
+            decisiveness = Math.max(decisiveness, EloParameters.NO_IMPACT) + defensiveBonus;
+        }
+
+        return decisiveness;
+    }
+
 
     private getFatigue(): number {
         if (this.gamesInARow <= EloParameters.MIN_GAMES_FOR_FATIGUE) return EloParameters.NO_FATIGUE_MULTIPLIER;

@@ -5,6 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ChevronDown, Video, Trophy } from "lucide-react"
+import { VideoPasswordModal } from "@/components/video-password-modal"
 
 interface Player {
   name: string
@@ -91,6 +92,7 @@ export function GameCard({
   getEloColor,
 }: GameCardProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
 
   // Find highest ELO players from each team
   const highestEloTeam1 = game.team1Players.reduce((prev, current) =>
@@ -129,16 +131,16 @@ export function GameCard({
                   <div className="text-xs text-muted-foreground mt-0.5">{formatDuration(game.timePlayed)}</div>
                 </div>
                 {game.videoLink && (
-                  <a
-                    href={game.videoLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setIsPasswordModalOpen(true)
+                    }}
                     className="flex items-center justify-center w-11 h-11 rounded-lg border border-border bg-background hover:bg-muted transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
                     aria-label="Watch game video"
                   >
                     <Video className="w-5 h-5 text-blue-600" />
-                  </a>
+                  </button>
                 )}
               </div>
 
@@ -230,6 +232,15 @@ export function GameCard({
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
+
+      {game.videoLink && (
+        <VideoPasswordModal
+          isOpen={isPasswordModalOpen}
+          onClose={() => setIsPasswordModalOpen(false)}
+          onSuccess={() => {}}
+          videoLink={game.videoLink}
+        />
+      )}
     </Card>
   )
 }
