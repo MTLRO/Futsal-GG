@@ -5,9 +5,9 @@ import {EloParameters} from "./EloParameters"
 
 export class EloCalculator {
 
-    private game: Game;
-    private result: GameResult;
-    private eloPot: number;
+    private readonly game: Game;
+    private readonly result: GameResult;
+    private readonly eloPot: number;
 
     constructor(game: Game) {
         this.game = game;
@@ -16,16 +16,15 @@ export class EloCalculator {
     }
 
     public calculateGameElos(): Map<number, number> {
+
         const eloChanges = new Map<number, number>();
 
         const homeTeam = this.game.getHomeTeam();
         const awayTeam = this.game.getAwayTeam();
 
         // Calculate ELO changes for home team
-        console.log("Home Team ELO Change")
         for (let i = 0; i < EloParameters.TEAM_SIZE; i++) {
             const player = homeTeam.players[i];
-            console.log("Player: ", player.name)
             const eloChange = this.calculatePlayerEloChange(player, homeTeam, awayTeam);
             eloChanges.set(player.playerId, eloChange);
         }
@@ -50,7 +49,29 @@ export class EloCalculator {
      * This method computes the blended share of the pot for a specific player
      */
     private calculateTeamShare(player: Player, team: Team, teamWonElo: boolean): number {
-        const playerEloShare = player.effectiveElo / team.effectiveTotalElo;
+
+        /**
+         * Weight calculation depends on whether team is gaining or losing ELO:
+         * - Gaining ELO: Use inverse-squared weights (lower ELO gains significantly more)
+         * - Losing ELO: Use squared weights (higher ELO loses significantly more)
+         * Squared weights create more pronounced differences than linear weights.
+         */
+
+        let playerWeight: number;
+        let totalWeight: number;
+
+        if (teamWonElo) {
+            // Inverse-squared weighting for gains - lower ELO players get more
+            playerWeight = 1 / (player.effectiveElo * player.effectiveElo);
+            totalWeight = team.players.reduce((sum, p) => sum + 1 / (p.effectiveElo * p.effectiveElo), 0);
+        } else {
+            // Squared weighting for losses - higher ELO players lose more
+            playerWeight = player.effectiveElo * player.effectiveElo;
+            totalWeight = team.players.reduce((sum, p) => sum + p.effectiveElo * p.effectiveElo, 0);
+        }
+
+        const playerEloShare = playerWeight / totalWeight;
+
         const decisiveness = player.getDecisiveness(this.game);
 
         let individualShare = 1.0;

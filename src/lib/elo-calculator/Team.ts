@@ -14,8 +14,6 @@ export class Team {
         this.actualAverageElo = this.players.reduce((sum, p) => sum + p.elo, 0) / EloParameters.TEAM_SIZE;
         this.effectiveTotalElo = this.players.reduce((sum, p) => sum + p.effectiveElo, 0);
         this.effectiveAverageElo = this.effectiveTotalElo / EloParameters.TEAM_SIZE;
-        console.log("actual elo of team: ", this.actualAverageElo);
-        console.log("effective elo of team: ", this.effectiveAverageElo);
     }
 
     public getGoalsScored() : number {

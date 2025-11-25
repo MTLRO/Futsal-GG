@@ -50,10 +50,11 @@ model TeamComposition {
 }
 
 model GameMaster {
-  id           Int      @id @default(autoincrement())
-  passwordHash String   @unique
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  passwordHash      String   @unique
+  videoPasswordHash String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 enum Team {

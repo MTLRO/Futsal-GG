@@ -126,7 +126,7 @@ export class EloParameters {
      * Default: 0.5 means draws cause 50% of the ELO impact of a win/loss.
      * Example: A favorite losing 15 ELO in a draw would lose 7.5 ELO instead.
      */
-    public static readonly DRAW_ELO_MULTIPLIER = 0.5;
+    public static readonly DRAW_ELO_MULTIPLIER = 0.6;
 
     // ============================================================================
     // Goal Differential
@@ -143,51 +143,14 @@ export class EloParameters {
     // Decisiveness Multipliers
     // ============================================================================
 
-    /**
-     * Multiplier for winners who scored 0 goals.
-     * Slightly penalized (0.9) since they didn't contribute goals, but still won.
-     * They get 90% of their normal share for being carried to victory.
-     */
-    public static readonly NO_GOALS_WINNER_DECISIVENESS = 0.9;
 
-    /**
-     * Multiplier for losers who scored 0 goals.
-     * No penalty (1.0) since they already lost and didn't pad stats.
-     * Prevents double-penalizing players who had a bad game.
-     */
-    public static readonly NO_GOALS_LOSER_DECISIVENESS = 1.0;
+    public static readonly LOSS_TO_TIE = 1.15; // saved 2 pts
 
-    /**
-     * Multiplier for "clutch" goals that turned a loss into a win/draw.
-     * Example: Team losing 2-3, player scores 2 to make it 4-3 (win).
-     * Highest multiplier (1.4x) because these goals had maximum impact.
-     * Applied to scaled goal contribution: 1.4 * cbrt(goals + 1).
-     */
-    public static readonly CLUTCH_LOSS_TO_WIN_MULTIPLIER = 1.4;
+    public static readonly LOSS_TO_WIN = 1.4;
 
-    /**
-     * Multiplier for "clutch" goals that turned a draw into a win.
-     * Example: Team tied 2-2, player scores 1 to make it 3-2 (win).
-     * High multiplier (1.3x) because these goals were game-deciding.
-     * Applied to scaled goal contribution: 1.3 * cbrt(goals + 1).
-     */
-    public static readonly CLUTCH_DRAW_TO_WIN_MULTIPLIER = 1.4;
+    public static readonly TIE_TO_WIN = 1.25;  //saved 2 pts
 
-    /**
-     * Multiplier for goals that improved a winning margin.
-     * Example: Team winning 3-2, player scores 1 to make it 4-2.
-     * Modest multiplier (1.15x) because the team was already winning.
-     * Applied to scaled goal contribution: 1.15 * cbrt(goals + 1).
-     */
-    public static readonly CLUTCH_WIN_IMPROVEMENT_MULTIPLIER = 1.15;
-
-    /**
-     * Multiplier for players who scored ALL their team's goals in a win.
-     * Example: Player scores 3 goals, team wins 3-2 (all 3 were this player's).
-     * High multiplier (1.25x) to reward carrying the team.
-     * Applied to scaled goal contribution: 1.25 * cbrt(goals + 1).
-     */
-    public static readonly SOLO_SCORER_MULTIPLIER = 1.25;
+    public static readonly NO_IMPACT = 0.40;
 
     // ============================================================================
     // Team Configuration
