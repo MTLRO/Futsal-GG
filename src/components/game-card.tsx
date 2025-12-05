@@ -13,7 +13,7 @@ interface Player {
   elo: number
   deltaELO: number
   goals: number
-  gameInARow: number
+  fatigueX: number
 }
 
 interface GameHistoryEntry {
@@ -35,29 +35,35 @@ interface GameCardProps {
   isTeam2Winner: boolean
   formatTime: (dateTime: string) => string
   formatDuration: (timePlayed: number | null) => string
-  getFatigueConfig: (gameInARow: number) => { width: number; bgColor: string; textColor: string; label: string }
+  getFatigueConfig: (fatigueX: number) => { width: number; bgColor: string; textColor: string; label: string }
   getEloIcon: (deltaELO: number) => React.ReactNode
   getEloColor: (deltaELO: number) => string
 }
 
 interface PlayerRowProps {
   player: Player
-  getFatigueConfig: (gameInARow: number) => { width: number; bgColor: string; textColor: string; label: string }
+  getFatigueConfig: (fatigueX: number) => { width: number; bgColor: string; textColor: string; label: string }
   getEloIcon: (deltaELO: number) => React.ReactNode
   getEloColor: (deltaELO: number) => string
 }
 
 function PlayerRow({ player, getFatigueConfig, getEloIcon, getEloColor }: PlayerRowProps) {
-  const fatigueConfig = getFatigueConfig(player.gameInARow)
+  const [showTooltip, setShowTooltip] = useState(false)
+  const fatigueConfig = getFatigueConfig(player.fatigueX)
+  const fatiguePercentage = Math.min(100, (player.fatigueX / 30) * 100) // Scale: 30 minutes = 100%
 
   return (
-    <div className="rounded-lg border bg-card overflow-hidden">
+    <div
+      className="rounded-lg border bg-card overflow-visible relative"
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
       {/* Player Name with Fatigue Battery Background */}
-      <div className="relative">
+      <div className="relative overflow-hidden rounded-lg">
         {/* Fatigue battery background */}
         <div
-          className={`absolute inset-y-0 left-0 ${fatigueConfig.bgColor} rounded-lg transition-all duration-300`}
-          style={{ width: `${fatigueConfig.width}%` }}
+          className={`absolute inset-y-0 left-0 ${fatigueConfig.bgColor} transition-all duration-300`}
+          style={{ width: `${fatiguePercentage}%` }}
         />
 
         {/* Player info */}
@@ -77,6 +83,16 @@ function PlayerRow({ player, getFatigueConfig, getEloIcon, getEloColor }: Player
           </div>
         </div>
       </div>
+
+      {/* Fatigue Tooltip on Hover */}
+      {showTooltip && (
+        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-slate-900 text-white px-2.5 py-1.5 rounded text-xs whitespace-nowrap shadow-lg">
+            Fatigue: {player.fatigueX} min
+          </div>
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+        </div>
+      )}
     </div>
   )
 }

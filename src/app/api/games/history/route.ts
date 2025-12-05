@@ -4,9 +4,9 @@ import { NextResponse } from "next/server";
 interface GameHistoryEntry {
   gameId: number;
   dateTime: string;
-  team1Players: Array<{ name: string; lastName: string; elo: number; deltaELO: number; goals: number; gameInARow: number }>;
+  team1Players: Array<{ name: string; lastName: string; elo: number; deltaELO: number; goals: number; fatigueX: number }>;
   team1AverageElo: number;
-  team2Players: Array<{ name: string; lastName: string; elo: number; deltaELO: number; goals: number; gameInARow: number }>;
+  team2Players: Array<{ name: string; lastName: string; elo: number; deltaELO: number; goals: number; fatigueX: number }>;
   team2AverageElo: number;
   timePlayed: number | null;
   videoLink: string | null;
@@ -76,7 +76,7 @@ export async function GET() {
           elo: gameElos.get(tp.playerId) || 1500,
           deltaELO: tp.deltaELO,
           goals: tp.goals,
-          gameInARow: tp.gameInARow,
+          fatigueX: tp.fatigueX,
         }));
 
       const awayTeamPlayers = game.teamPlayers
@@ -87,7 +87,7 @@ export async function GET() {
           elo: gameElos.get(tp.playerId) || 1500,
           deltaELO: tp.deltaELO,
           goals: tp.goals,
-          gameInARow: tp.gameInARow,
+          fatigueX: tp.fatigueX,
         }));
 
       // Use stored average ELO from time of game (or calculate if not stored)

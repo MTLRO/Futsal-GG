@@ -153,6 +153,44 @@ export class EloParameters {
     public static readonly NO_IMPACT = 0.40;
 
     // ============================================================================
+    // Goal Scoring Bonuses
+    // ============================================================================
+
+    /**
+     * Bonus multiplier for scoring a single goal.
+     */
+    public static readonly SINGLE_GOAL_BONUS = 0.15;
+
+    /**
+     * Bonus multiplier for scoring two goals.
+     */
+    public static readonly DOUBLE_GOAL_BONUS = 0.35;
+
+    // ============================================================================
+    // Goalkeeper Bonuses
+    // ============================================================================
+
+    /**
+     * Coefficient applied to goal bonuses for goalkeepers (they score less often).
+     */
+    public static readonly GK_GOAL_COEF = 2.0;
+
+    /**
+     * Bonus for goalkeeper when no goals are allowed (clean sheet).
+     */
+    public static readonly CLEAN_SHEET_BONUS = 0.4;
+
+    /**
+     * Bonus for goalkeeper when only one goal is allowed.
+     */
+    public static readonly ONE_GOAL_ALLOWED_BONUS = 0.2;
+
+    /**
+     * Bonus for goalkeeper when only two goals are allowed.
+     */
+    public static readonly TWO_GOALS_ALLOWED_BONUS = 0.1;
+
+    // ============================================================================
     // Team Configuration
     // ============================================================================
 

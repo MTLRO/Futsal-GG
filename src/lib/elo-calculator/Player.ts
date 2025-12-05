@@ -1,126 +1,122 @@
 import {EloParameters} from "@/lib/elo-calculator/EloParameters";
 import {Game} from "./Game";
+import { Result } from "./Result";
 
 export class Player {
 
 
     public playerId : number; // player id as in the database
-    public goalsScored : number;
     public name : string; // used to debug or have tests, easier to read. not necessary for ELO computation.
-    public effectiveElo : number;
-    public qFactor : number;
+    
+    public qFactor : number; // computed
+    public elo : number; // computed, takes into consideration the fatigue of the player.
+
+    //Data from the DB.
+    private staticElo : number;
+    private fatigueX : number;
+    private gamesPlayed : number = 0;
+    
 
 
-    private gamesPlayed;
-    public elo : number;
-    private gamesInARow : number;
-
-    public constructor(playerId : number, name : string, goalsScored : number, gamesInARow : number, elo : number, gamesPlayed : number) {
-
+    public constructor(playerId : number, name : string, fatigueX : number, gamesPlayed : number, staticElo : number
+    ) {
         this.playerId = playerId;
-        this.gamesInARow = gamesInARow;
         this.name = name;
-        this.goalsScored = goalsScored;
+        this.staticElo = staticElo;
+        this.fatigueX = fatigueX; // [0,1]
         this.gamesPlayed = gamesPlayed;
-        this.elo = elo;
 
-        this.effectiveElo = elo * this.getFatigue();
         this.qFactor = this.getQFactor();
+        this.elo = this.staticElo * this.getFatigueCoefficient();
     }
 
-    private findTeam(game: Game) {
-        const homeTeam = game.getHomeTeam();
-        const awayTeam = game.getAwayTeam();
-
-        return homeTeam.players.some(p => p.playerId === this.playerId)
-            ? homeTeam
-            : awayTeam;
+    public getGoalsScoredInGame(game : Game) : number {
+        return game.getPlayerGoals(this);
     }
 
-    public getDecisiveness(game: Game): number {
-        const playerGoals = this.goalsScored;
+    public getDecisivenessMultiplier(goalsScoredByThis : number, goalsScoredByTeamates : number, goalsScoredByOpponents : number, goalKeeper : boolean) : number {
+        let goalBonus = 1.0;
 
-        const team = this.findTeam(game);
-        const opponentTeam = team === game.getHomeTeam()
-            ? game.getAwayTeam()
-            : game.getHomeTeam();
-
-        const teammatesGoals = team.getGoalsScored() - playerGoals;
-        const opponentGoals = opponentTeam.getGoalsScored();
+        // we increase this value depending on the player "decisiveness"
+        let output = 1.0;
 
 
-        // Determine result swing without the player
-        const resultWithoutPlayer = teammatesGoals - opponentGoals;
-        const resultWithPlayer = team.getGoalsScored() - opponentGoals;
 
-        const playerWon = game.didPlayerWin(this);
-        const teamGoals = team.getGoalsScored();
-        const isDraw = teamGoals === opponentGoals;
+        if (goalKeeper) {
+            if (goalsScoredByOpponents === 0) {
+                output += EloParameters.CLEAN_SHEET_BONUS;
+            }
+            if (goalsScoredByOpponents === 1) {
+                output += EloParameters.ONE_GOAL_ALLOWED_BONUS;
+            }
+            if (goalsScoredByOpponents === 2) {
+                output += EloParameters.TWO_GOALS_ALLOWED_BONUS;
+            }
+            goalBonus = EloParameters.GK_GOAL_COEF;
+        }
 
-        let multiplier: number;
+        // win = 1, draw = 0.5, loss = 0
+        const resultWithoutPlayer = goalsScoredByTeamates - goalsScoredByOpponents > 0 ? Result.WIN : (goalsScoredByTeamates - goalsScoredByOpponents < 0 ? Result.LOSS : Result.DRAW);
+        const resultWithPlayer = (goalsScoredByThis + goalsScoredByTeamates) - goalsScoredByOpponents > 0 ? Result.WIN : ((goalsScoredByThis +goalsScoredByTeamates) - goalsScoredByOpponents < 0 ? Result.LOSS : Result.DRAW);
 
-        if (resultWithoutPlayer < 0 && resultWithPlayer > 0) {
+        // Clutch factor
+        if (resultWithoutPlayer === Result.LOSS && resultWithPlayer === Result.WIN) {
             // Player turned a loss into a win
-            multiplier = EloParameters.LOSS_TO_WIN;
-        } else if (resultWithoutPlayer < 0 && resultWithPlayer === 0) {
+            output += EloParameters.LOSS_TO_WIN;
+        } else
+        if (resultWithoutPlayer === Result.LOSS && resultWithPlayer === Result.DRAW) {
             // Player turned a loss into a tie
-            multiplier = EloParameters.LOSS_TO_TIE;
-        } else if (resultWithoutPlayer === 0 && resultWithPlayer > 0) {
+            output += EloParameters.LOSS_TO_TIE;
+        } else
+        if (resultWithoutPlayer === Result.DRAW && resultWithPlayer === Result.WIN) {
             // Player turned a tie into a win
-            multiplier = EloParameters.TIE_TO_WIN;
+            output += EloParameters.TIE_TO_WIN;
         } else {
             // No significant impact
-            multiplier = EloParameters.NO_IMPACT;
         }
 
-        // Final decisiveness formula
-        let decisiveness: number;
 
-        if (!playerWon && !isDraw) {
-            // Player's team lost (not a draw)
-            const impact = opponentGoals - teammatesGoals;
-            decisiveness = Math.max(EloParameters.NO_IMPACT, Math.sqrt((playerGoals + 1) * impact));
-        } else {
-            // Win or draw - use square root for more pronounced differences
-            // Higher formula values = more impact = more ELO when winning, less loss when losing
-            decisiveness = Math.sqrt((playerGoals + 1 + opponentGoals) / (teammatesGoals + 1)) * multiplier;
+        // Goal factor, applies regardless, even if player didnt change the result.
+        // On losses, goals provide strong protection (3x bonus) vs wins
+        const isLoss = (resultWithoutPlayer === Result.LOSS && resultWithPlayer === Result.LOSS);
+        const goalMultiplier = isLoss ? 3.0 : 1.0; // On losses, 3x goal bonus for protection
+
+        if (goalsScoredByThis === 1) {
+            output += EloParameters.SINGLE_GOAL_BONUS * goalBonus * goalMultiplier;
+        } else if (goalsScoredByThis === 2) {
+            output += EloParameters.DOUBLE_GOAL_BONUS * goalBonus * goalMultiplier;
+        } else if (goalsScoredByThis >= 3) {
+            output += (Math.cbrt(goalsScoredByThis + 1)/5 + 0.4) * goalBonus * goalMultiplier;
         }
 
-        // Defensive bonus for non-scorers when team didn't concede much
-        if (playerGoals === 0 && (playerWon || isDraw)) {
-            let defensiveBonus = 0;
-
-            if (opponentGoals === 0) {
-                // Clean sheet - strong defensive contribution
-                defensiveBonus = 0.9;
-            } else if (opponentGoals === 1) {
-                // Conceded only 1 goal - good defensive contribution
-                defensiveBonus = 0.55;
-            } else if (opponentGoals === 2) {
-                // Conceded 2 goals - moderate defensive contribution
-                defensiveBonus = 0.2;
-            }
-
-            // Apply defensive bonus to bring decisiveness above NO_IMPACT
-            decisiveness = Math.max(decisiveness, EloParameters.NO_IMPACT) + defensiveBonus;
-        }
-
-        return decisiveness;
+        return output;
     }
 
-
-    private getFatigue(): number {
-        if (this.gamesInARow <= EloParameters.MIN_GAMES_FOR_FATIGUE) return EloParameters.NO_FATIGUE_MULTIPLIER;
-        const fatigue = (this.gamesInARow - 1) * EloParameters.FATIGUE_COEFFICIENT;
-        return 1 - Math.min(1, fatigue);
+    private getFatigueCoefficient(): number {
+        return Math.min(1, this.fatigueX**2/1000);
     }
+
 
     private getQFactor(): number {
         return Math.max(EloParameters.MIN_Q_FACTOR, 1.0 - this.gamesPlayed * EloParameters.EXPERIENCE_WEIGHT);
     }
 
+    public getKFactor(): number {
+        if (this.staticElo >= EloParameters.K_FACTOR_HIGH_THRESHOLD) {
+            return EloParameters.K_FACTOR_HIGH;
+        } else if (this.staticElo >= EloParameters.K_FACTOR_MID_THRESHOLD) {
+            return EloParameters.K_FACTOR_MID;
+        } else {
+            return EloParameters.K_FACTOR_LOW;
+        }
+    }
+
+    public getStaticElo(): number {
+        return this.staticElo;
+    }
+
     public toString(): string {
-        return `Player{id=${this.playerId}, name="${this.name}", elo=${this.elo}, effectiveElo=${this.effectiveElo.toFixed(1)}, goals=${this.goalsScored}, gamesPlayed=${this.gamesPlayed}, qFactor=${this.qFactor.toFixed(2)}}`;
+        return `Player{id=${this.playerId}, name="${this.name}", staticElo=${this.staticElo}, elo=${this.elo.toFixed(1)}, gamesPlayed=${this.gamesPlayed}, qFactor=${this.qFactor.toFixed(2)}}`;
     }
 
 }

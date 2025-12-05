@@ -2,146 +2,212 @@ import {Game, GameResult} from "./Game"
 import {Player} from "./Player"
 import {Team} from "./Team"
 import {EloParameters} from "./EloParameters"
+import {Result} from "./Result"
 
 export class EloCalculator {
 
     private readonly game: Game;
-    private readonly result: GameResult;
-    private readonly eloPot: number;
+    private playerEloChanges = new Map<Player, number>();
 
     constructor(game: Game) {
         this.game = game;
-        this.result = game.getResult();
-        this.eloPot = game.getEloPot();
-    }
-
-    public calculateGameElos(): Map<number, number> {
-
-        const eloChanges = new Map<number, number>();
-
-        const homeTeam = this.game.getHomeTeam();
-        const awayTeam = this.game.getAwayTeam();
-
-        // Calculate ELO changes for home team
-        for (let i = 0; i < EloParameters.TEAM_SIZE; i++) {
-            const player = homeTeam.players[i];
-            const eloChange = this.calculatePlayerEloChange(player, homeTeam, awayTeam);
-            eloChanges.set(player.playerId, eloChange);
-        }
-
-        // Calculate ELO changes for away team
-        for (let i = 0; i < EloParameters.TEAM_SIZE; i++) {
-            const player = awayTeam.players[i];
-            const eloChange = this.calculatePlayerEloChange(player, awayTeam, homeTeam);
-            eloChanges.set(player.playerId, eloChange);
-        }
-
-        return eloChanges;
+        this.compute();
     }
 
     /**
-     *
-     * @param player - the player to calculate share for
-     * @param team - the player's team
-     * @param teamWonElo - whether this team won ELO (true for wins, false for losses, false for draws)
-     * @private
-     *
-     * This method computes the blended share of the pot for a specific player
+     * Returns the ELO changes for all players after computation.
      */
-    private calculateTeamShare(player: Player, team: Team, teamWonElo: boolean): number {
-
-        /**
-         * Weight calculation depends on whether team is gaining or losing ELO:
-         * - Gaining ELO: Use inverse-squared weights (lower ELO gains significantly more)
-         * - Losing ELO: Use squared weights (higher ELO loses significantly more)
-         * Squared weights create more pronounced differences than linear weights.
-         */
-
-        let playerWeight: number;
-        let totalWeight: number;
-
-        if (teamWonElo) {
-            // Inverse-squared weighting for gains - lower ELO players get more
-            playerWeight = 1 / (player.effectiveElo * player.effectiveElo);
-            totalWeight = team.players.reduce((sum, p) => sum + 1 / (p.effectiveElo * p.effectiveElo), 0);
-        } else {
-            // Squared weighting for losses - higher ELO players lose more
-            playerWeight = player.effectiveElo * player.effectiveElo;
-            totalWeight = team.players.reduce((sum, p) => sum + p.effectiveElo * p.effectiveElo, 0);
-        }
-
-        const playerEloShare = playerWeight / totalWeight;
-
-        const decisiveness = player.getDecisiveness(this.game);
-
-        let individualShare = 1.0;
-
-        if (teamWonElo) {
-            individualShare = decisiveness * playerEloShare;
-        } else {
-            individualShare = playerEloShare / decisiveness;
-        }
-
-        return player.qFactor * individualShare + (1 - player.qFactor) * playerEloShare;
-    }
-
-    private calculatePlayerEloChange(
-        player: Player,
-        playerTeam: Team,
-        opponentTeam: Team
-    ): number {
-        // Determine if this team won or lost ELO
-        const teamWonElo = this.determineTeamWonElo(playerTeam, opponentTeam);
-
-        // Calculate the blended share for this player based on whether team won/lost ELO
-        console.log(player.name, "won or lost? -> " + teamWonElo);
-        const blendedShare = this.calculateTeamShare(player, playerTeam, teamWonElo);
-
-        // Calculate total shares for all teammates to determine scaling factor
-        let totalTeammateShares = 0;
-        for (const teammate of playerTeam.players) {
-            totalTeammateShares += this.calculateTeamShare(teammate, playerTeam, teamWonElo);
-        }
-        console.log("total teamate shares: ", totalTeammateShares);
-        const scalingFactor = this.eloPot / totalTeammateShares;
-        console.log("scaling factor for ", player.name);
-
-        // Return ELO change based on whether team won or lost ELO
-        let eloChange: number;
-        if (teamWonElo) {
-            eloChange = Math.round(scalingFactor * blendedShare);
-        } else {
-            eloChange = -Math.round(scalingFactor * blendedShare);
-        }
-
-        // Apply draw multiplier to reduce ELO impact in draws
-        if (this.result === GameResult.DRAW) {
-            eloChange = Math.round(eloChange * EloParameters.DRAW_ELO_MULTIPLIER);
-        }
-
-        return eloChange;
+    public getPlayerEloChanges(): Map<Player, number> {
+        return this.playerEloChanges;
     }
 
     /**
-     * Determines if a team won or lost ELO based on the game result and expected score
-     * In a draw: team wins ELO if they were expected to lose, loses ELO if expected to win
-     * In a win/loss: team wins ELO on win, loses ELO on loss
+     * Main computation method - calculates ELO changes for all players.
      */
-    private determineTeamWonElo(team: Team, opponentTeam: Team): boolean {
-        if (this.result === GameResult.DRAW) {
-            const expectedScore = this.getExpectedScore(team.effectiveAverageElo, opponentTeam.effectiveAverageElo);
-            // Team wins ELO in a draw if expected score < 0.5 (they were the underdog)
-            // Team loses ELO in a draw if expected score > 0.5 (they were the favorite)
-            return expectedScore < EloParameters.DRAW_SCORE;
-        } else if (this.result === GameResult.HOME_WIN) {
-            return this.game.getHomeTeam() === team;
+    private compute(): void {
+        const team1 = this.game.getTeam1();
+        const team2 = this.game.getTeam2();
+
+        // Compute expected scores for each team
+        const expectedScoreTeam1 = this.getExpectedScore(team1.elo, team2.elo);
+        const expectedScoreTeam2 = 1 - expectedScoreTeam1;
+
+        // Get actual scores based on game result
+        const actualScoreTeam1 = this.getActualScore(team1);
+        const actualScoreTeam2 = this.getActualScore(team2);
+
+        // Compute and share ELO for each team
+        this.shareEloWithPlayers(team1, team2, expectedScoreTeam1, actualScoreTeam1);
+        this.shareEloWithPlayers(team2, team1, expectedScoreTeam2, actualScoreTeam2);
+    }
+
+    /**
+     * Calculates the expected score using standard ELO formula.
+     * @param teamElo - The team's total ELO
+     * @param opponentElo - The opponent team's total ELO
+     * @returns Expected score between 0 and 1
+     */
+    private getExpectedScore(teamElo: number, opponentElo: number): number {
+        const eloDiff = opponentElo - teamElo;
+        return 1 / (1 + Math.pow(10, eloDiff / EloParameters.ELO_DIFF_DIVISOR));
+    }
+
+    /**
+     * Gets the actual score for a team based on game result.
+     */
+    private getActualScore(team: Team): number {
+        if (this.game.winningTeam === team) {
+            return EloParameters.WIN_SCORE;
+        } else if (this.game.losingTeam === team) {
+            return EloParameters.LOSS_SCORE;
         } else {
-            return this.game.getAwayTeam() === team;
+            return EloParameters.DRAW_SCORE;
         }
     }
 
-    private getExpectedScore(playerElo: number, opponentElo: number): number {
-        const diff = opponentElo - playerElo;
-        return 1 / (1 + Math.pow(10, diff / EloParameters.ELO_DIFF_DIVISOR));
+    /**
+     * Computes the base ELO pot for a team (before individual distribution).
+     * This is the raw score difference that will be distributed among players.
+     */
+    private getTeamEloPot(expectedScore: number, actualScore: number): number {
+        let scoreDiff = actualScore - expectedScore;
+
+        // Apply draw multiplier if it's a draw
+        if (actualScore === EloParameters.DRAW_SCORE) {
+            scoreDiff *= EloParameters.DRAW_ELO_MULTIPLIER;
+        }
+
+        return scoreDiff;
+    }
+
+    /**
+     * Distributes ELO changes among players on a team using the two-pot system.
+     * Pot 1: Team-based (inversely proportional to ELO)
+     * Pot 2: Performance-based (based on decisiveness)
+     * Final: Blended using each player's qFactor
+     */
+    private shareEloWithPlayers(team: Team, opponentTeam: Team, expectedScore: number, actualScore: number): void {
+        const eloPot = this.getTeamEloPot(expectedScore, actualScore);
+        const isWin = actualScore > expectedScore;
+
+        // Calculate team totals for distribution
+        const teamGoals = this.game.getTeamGoals(team);
+        const opponentGoals = this.game.getTeamGoals(opponentTeam);
+
+        // Calculate weights for both distribution methods
+        const teamBasedWeights = this.calculateTeamBasedWeights(team, isWin);
+        const performanceWeights = this.calculatePerformanceWeights(team, opponentTeam, teamGoals, opponentGoals);
+
+        // Normalize weights
+        const teamBasedTotal = Array.from(teamBasedWeights.values()).reduce((a, b) => a + b, 0);
+        const performanceTotal = Array.from(performanceWeights.values()).reduce((a, b) => a + b, 0);
+
+        // Distribute ELO to each player
+        for (const player of team.players) {
+            // Normalize weights for this player
+            const teamBasedShare = teamBasedTotal > 0
+                ? (teamBasedWeights.get(player) ?? 0) / teamBasedTotal
+                : 1 / team.players.length;
+            const performanceShare = performanceTotal > 0
+                ? (performanceWeights.get(player) ?? 0) / performanceTotal
+                : 1 / team.players.length;
+
+            // Blend using qFactor: high qFactor = more performance-based
+            const qFactor = player.qFactor;
+            const blendedShare = (1 - qFactor) * teamBasedShare + qFactor * performanceShare;
+
+            // Apply K-factor individually
+            const kFactor = player.getKFactor();
+            const eloChange = kFactor * eloPot * blendedShare * team.players.length;
+
+            this.playerEloChanges.set(player, eloChange);
+        }
+    }
+
+    /**
+     * Calculates team-based distribution weights.
+     * For wins: lower ELO = higher weight (they benefit more)
+     * For losses: higher ELO = higher weight (they lose more)
+     */
+    private calculateTeamBasedWeights(team: Team, isWin: boolean): Map<Player, number> {
+        const weights = new Map<Player, number>();
+        const teamTotalElo = team.elo;
+
+        for (const player of team.players) {
+            const playerEloRatio = player.elo / teamTotalElo;
+
+            if (isWin) {
+                // For wins: inverse proportion - lower ELO players get more
+                weights.set(player, 1 - playerEloRatio);
+            } else {
+                // For losses: direct proportion - higher ELO players lose more
+                weights.set(player, playerEloRatio);
+            }
+        }
+
+        return weights;
+    }
+
+    /**
+     * Calculates performance-based distribution weights using decisiveness multiplier.
+     * On losses, inverts the multiplier so goal scorers lose less.
+     */
+    private calculatePerformanceWeights(team: Team, opponentTeam: Team, teamGoals: number, opponentGoals: number): Map<Player, number> {
+        const weights = new Map<Player, number>();
+        const isLoss = this.game.losingTeam === team;
+
+        for (const player of team.players) {
+            const playerGoals = this.game.getPlayerGoals(player);
+            const teammateGoals = teamGoals - playerGoals;
+            const isGoalKeeper = team.isGoalKeeper(player);
+
+            let decisiveness = player.getDecisivenessMultiplier(
+                playerGoals,
+                teammateGoals,
+                opponentGoals,
+                isGoalKeeper
+            );
+
+            // On losses: invert decisiveness so goal scorers get less weight (lose less)
+            // Use squared reciprocal for stronger effect: 1 / (decisiveness^2)
+            // This ensures goal scorers lose significantly less ELO on losses
+            if (isLoss) {
+                decisiveness = 1 / (decisiveness * decisiveness);
+            }
+
+            weights.set(player, decisiveness);
+        }
+
+        return weights;
+    }
+
+    /**
+     * Inverts performance weights for losses.
+     * This ensures goal scorers lose significantly less ELO on losses.
+     * Uses reciprocal-based inversion for strong effect.
+     */
+    private invertPerformanceWeights(weights: Map<Player, number>): Map<Player, number> {
+        const invertedWeights = new Map<Player, number>();
+
+        // Use reciprocal inversion: 1/weight
+        // This creates a strong inverse effect where high performers get very low weights on losses
+        let totalInvertedWeight = 0;
+        const tempWeights = new Map<Player, number>();
+
+        for (const [player, weight] of weights) {
+            const invertedWeight = 1 / weight;
+            tempWeights.set(player, invertedWeight);
+            totalInvertedWeight += invertedWeight;
+        }
+
+        // Normalize so they sum to same total as original for fair distribution
+        const originalTotal = Array.from(weights.values()).reduce((a, b) => a + b, 0);
+        const scaleFactor = originalTotal / totalInvertedWeight;
+
+        for (const [player, invertedWeight] of tempWeights) {
+            invertedWeights.set(player, invertedWeight * scaleFactor);
+        }
+
+        return invertedWeights;
     }
 }

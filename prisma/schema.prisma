@@ -12,17 +12,19 @@ model Player {
   name         String
   lastName     String
   elo          Int           @default(1500)
+  fatigueX     Int           @default(0)
   teamPlayers  TeamPlayer[]
   @@index([lastName, name])
 }
 
 model TeamPlayer {
-  id         Int   @id @default(autoincrement())
+  id         Int     @id @default(autoincrement())
   side       Side
   playerId   Int
-  goals      Int   @default(0)
-  deltaELO   Int   @default(0)
-  gameInARow Int   @default(1)  // Number of games in a row this player played (for fatigue tracking)
+  goals      Int     @default(0)
+  deltaELO   Int     @default(0)
+  fatigueX   Int     @default(0)  // Fatigue in minutes: increases by game duration, decreases by 1 per minute not playing
+  goalkeeper Boolean @default(false)
   player     Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
   gameId     Int
   game       Game  @relation(fields: [gameId], references: [id], onDelete: Cascade)

@@ -56,11 +56,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Calculate gameInARow for each player by checking previous games
+    // Calculate fatigueX for each player based on game duration and time since last game
     const gameStartTime = new Date(startDateTime);
-    const fatigueWindowMs = 3 * 60 * 1000; // 3 minutes
+    const gameDurationMinutes = Math.round((duration || 0) / 60); // Convert seconds to minutes
 
-    const gameInARowMap = new Map<number, number>();
+    const fatigueXMap = new Map<number, number>();
 
     for (const playerId of allPlayerIds) {
       // Find the most recent game this player participated in before the current game
@@ -91,18 +91,26 @@ export async function POST(request: Request) {
           new Date(previousGame.game.startDateTime).getTime() +
           (previousGame.game.timePlayed || 0) * 1000;
 
-        // Check if previous game ended within 3 minutes
-        if (gameStartTime.getTime() - previousGameEndTime <= fatigueWindowMs) {
-          // Player is playing within 3 minutes of their last game
-          const previousGameInARow = previousGame.gameInARow || 1;
-          gameInARowMap.set(playerId, previousGameInARow + 1);
-        } else {
-          // Reset the streak
-          gameInARowMap.set(playerId, 1);
-        }
+        // Calculate minutes since last game ended
+        const minutesSincePreviousGame = Math.floor(
+          (gameStartTime.getTime() - previousGameEndTime) / (60 * 1000)
+        );
+
+        // Get the previous game's fatigue and duration
+        const previousGameDurationMinutes = Math.round((previousGame.game.timePlayed || 0) / 60);
+        const previousFatigueBefore = previousGame.fatigueX || 0;
+        const previousFatigueAfter = previousFatigueBefore + previousGameDurationMinutes;
+
+        // Decay fatigue by 1 per minute since last game, minimum 0
+        const decayedFatigue = Math.max(
+          0,
+          previousFatigueAfter - minutesSincePreviousGame
+        );
+
+        fatigueXMap.set(playerId, decayedFatigue);
       } else {
-        // No previous games
-        gameInARowMap.set(playerId, 1);
+        // No previous games - first game, player is fresh
+        fatigueXMap.set(playerId, 0);
       }
     }
 
@@ -118,13 +126,13 @@ export async function POST(request: Request) {
                 side: "HOME" as const,
                 playerId: p.playerId,
                 goals: p.goals,
-                gameInARow: gameInARowMap.get(p.playerId) || 1,
+                fatigueX: fatigueXMap.get(p.playerId) || 0,
               })),
               ...awayTeamPlayers.map((p: PlayerGoals) => ({
                 side: "AWAY" as const,
                 playerId: p.playerId,
                 goals: p.goals,
-                gameInARow: gameInARowMap.get(p.playerId) || 1,
+                fatigueX: fatigueXMap.get(p.playerId) || 0,
               })),
             ],
           },
@@ -161,7 +169,7 @@ export async function POST(request: Request) {
           playerElos.set(player.id, player.elo);
         }
 
-        // Build player data with gameInARow for ELO calculation
+        // Build player data with fatigueX for ELO calculation
         const homePlayersData = [];
         const awayPlayersData = [];
 
@@ -171,7 +179,7 @@ export async function POST(request: Request) {
             elo: playerElos.get(tp.playerId) || 1500,
             goals: tp.goals,
             gamesPlayed: 0, // Will be calculated from all games
-            gameInARow: tp.gameInARow,
+            fatigueX: tp.fatigueX,
           });
         }
 
@@ -181,7 +189,7 @@ export async function POST(request: Request) {
             elo: playerElos.get(tp.playerId) || 1500,
             goals: tp.goals,
             gamesPlayed: 0, // Will be calculated from all games
-            gameInARow: tp.gameInARow,
+            fatigueX: tp.fatigueX,
           });
         }
 
