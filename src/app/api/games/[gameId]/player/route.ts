@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
-// POST goal - increment goals for a player in a game and create a Goal record with timestamp
-export async function POST(
+// PATCH - Update player data in a game (goals, goalkeeper status)
+export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ gameId: string }> }
 ) {
@@ -10,7 +10,7 @@ export async function POST(
   try {
     const gameId = parseInt(resolvedParams.gameId);
     const body = await request.json();
-    const { playerId, timestamp } = body;
+    const { playerId, goals, goalkeeper } = body;
 
     if (!playerId) {
       return NextResponse.json(
@@ -19,7 +19,7 @@ export async function POST(
       );
     }
 
-    // Find the team player record and increment goals
+    // Find the team player record
     const teamPlayer = await prisma.teamPlayer.findFirst({
       where: {
         gameId,
@@ -34,29 +34,20 @@ export async function POST(
       );
     }
 
-    // Create a Goal record with timestamp
-    const goal = await prisma.goal.create({
-      data: {
-        teamPlayerId: teamPlayer.id,
-        timestamp: timestamp || null,
-      },
-    });
+    // Build update data object
+    const updateData: { goals?: number; goalkeeper?: boolean } = {};
+    if (goals !== undefined) updateData.goals = goals;
+    if (goalkeeper !== undefined) updateData.goalkeeper = goalkeeper;
 
-    // Increment the goals count on the TeamPlayer
     const updated = await prisma.teamPlayer.update({
       where: { id: teamPlayer.id },
-      data: {
-        goals: {
-          increment: 1,
-        },
-      },
+      data: updateData,
       include: {
         player: true,
-        goalDetails: true,
       },
     });
 
-    return NextResponse.json({ teamPlayer: updated, goal });
+    return NextResponse.json({ teamPlayer: updated });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

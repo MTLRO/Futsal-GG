@@ -1,4 +1,4 @@
-import {Player} from "./Player";
+import {Player, ChemistryData} from "./Player";
 import {Team} from "./Team";
 import {Game} from "./Game";
 import {EloCalculator} from "./EloCalculator";
@@ -11,6 +11,7 @@ interface PlayerData {
     gamesPlayed: number;
     fatigueX: number; // Fatigue in minutes: increases by game duration, decreases by 1 per minute not playing
     isGoalKeeper?: boolean;
+    teammatesChemistry?: ChemistryData[]; // Chemistry data with current teammates
 }
 
 /**
@@ -30,12 +31,12 @@ export function calculateGameElos(
 ): Map<number, number> {
     // Create Player instances for home team
     const homePlayers = homeTeamPlayers.map(
-        (p) => new Player(p.playerId, p.name ?? `Player ${p.playerId}`, p.fatigueX, p.gamesPlayed, p.elo)
+        (p) => new Player(p.playerId, p.name ?? `Player ${p.playerId}`, p.fatigueX, p.gamesPlayed, p.elo, p.teammatesChemistry ?? [])
     );
 
     // Create Player instances for away team
     const awayPlayers = awayTeamPlayers.map(
-        (p) => new Player(p.playerId, p.name ?? `Player ${p.playerId}`, p.fatigueX, p.gamesPlayed, p.elo)
+        (p) => new Player(p.playerId, p.name ?? `Player ${p.playerId}`, p.fatigueX, p.gamesPlayed, p.elo, p.teammatesChemistry ?? [])
     );
 
     // Determine goalkeeper IDs (use -1 if not specified, meaning no goalkeeper bonus)
@@ -74,3 +75,4 @@ export function calculateGameElos(
 // Export the classes for direct use if needed
 export { Player, Team, Game, EloCalculator };
 export { EloParameters } from "./EloParameters";
+export type { ChemistryData };

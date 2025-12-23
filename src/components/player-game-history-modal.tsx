@@ -12,12 +12,15 @@ import { ArrowUp, ArrowDown, Minus } from "lucide-react"
 import { GameCard } from "./game-card"
 
 interface Player {
+  playerId: number
   name: string
   lastName: string
   elo: number
   deltaELO: number
   goals: number
   fatigueX: number
+  goalkeeper?: boolean
+  goalTimestamps?: (number | null)[]
 }
 
 interface GameHistoryEntry {
@@ -29,6 +32,7 @@ interface GameHistoryEntry {
   team2AverageElo: number
   timePlayed: number | null
   videoLink: string | null
+  videoTimestamp: number | null
   team1Score: number
   team2Score: number
 }

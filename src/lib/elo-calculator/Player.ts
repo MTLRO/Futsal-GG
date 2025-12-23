@@ -2,32 +2,41 @@ import {EloParameters} from "@/lib/elo-calculator/EloParameters";
 import {Game} from "./Game";
 import { Result } from "./Result";
 
+export interface ChemistryData {
+    playerId: number;
+    wins: number;
+    losses: number;
+    draws: number;
+}
+
 export class Player {
 
 
     public playerId : number; // player id as in the database
     public name : string; // used to debug or have tests, easier to read. not necessary for ELO computation.
-    
+
     public qFactor : number; // computed
-    public elo : number; // computed, takes into consideration the fatigue of the player.
+    public elo : number; // computed, takes into consideration the fatigue and chemistry of the player.
 
     //Data from the DB.
     private staticElo : number;
     private fatigueX : number;
     private gamesPlayed : number = 0;
-    
+    private teammatesChemistry : ChemistryData[]; // Chemistry data with current teammates
 
 
-    public constructor(playerId : number, name : string, fatigueX : number, gamesPlayed : number, staticElo : number
+
+    public constructor(playerId : number, name : string, fatigueX : number, gamesPlayed : number, staticElo : number, teammatesChemistry : ChemistryData[] = []
     ) {
         this.playerId = playerId;
         this.name = name;
         this.staticElo = staticElo;
         this.fatigueX = fatigueX; // [0,1]
         this.gamesPlayed = gamesPlayed;
+        this.teammatesChemistry = teammatesChemistry;
 
         this.qFactor = this.getQFactor();
-        this.elo = this.staticElo * this.getFatigueCoefficient();
+        this.elo = this.staticElo * this.getFatigueCoefficient() * this.getChemistryCoefficient();
     }
 
     public getGoalsScoredInGame(game : Game) : number {
@@ -93,8 +102,64 @@ export class Player {
     }
 
     private getFatigueCoefficient(): number {
-        return Math.min(1, this.fatigueX**2/1000);
+        return Math.min(1, (this.fatigueX / 20) ** 2);
     }
+
+    /**
+     * Calculates the chemistry coefficient based on this player's history with their teammates.
+     * Chemistry is based on win rate with each teammate, weighted by number of games together.
+     *
+     * Returns a multiplier between CHEMISTRY_MIN_COEFFICIENT (0.85) and CHEMISTRY_MAX_COEFFICIENT (1.15):
+     * - Players who consistently win together get a bonus (up to +15%)
+     * - Players who consistently lose together get a penalty (up to -15%)
+     * - Players who never played together get a slight penalty (neutral - 2%)
+     * - More games together = higher confidence in the chemistry score
+     */
+    private getChemistryCoefficient(): number {
+        // If no teammates data provided (shouldn't happen in normal operation)
+        if (!this.teammatesChemistry || this.teammatesChemistry.length === 0) {
+            return 1.0; // Neutral coefficient
+        }
+
+        let totalChemistry = 0;
+        let teammateCount = 0;
+
+        for (const teammate of this.teammatesChemistry) {
+            const totalGames = teammate.wins + teammate.losses + teammate.draws;
+
+            let chemistry: number;
+            if (totalGames === 0) {
+                // Never played together - use neutral default (slight penalty)
+                chemistry = EloParameters.CHEMISTRY_NEUTRAL;
+            } else {
+                // Calculate win rate: wins count as 1, draws as 0.5
+                const winRate = (teammate.wins + 0.5 * teammate.draws) / totalGames;
+
+                // Calculate confidence based on games played together
+                const confidence = Math.min(1, totalGames / EloParameters.GAMES_FOR_FULL_CONFIDENCE);
+
+                // Blend actual win rate with neutral default based on confidence
+                // Low confidence = closer to neutral, high confidence = closer to actual win rate
+                chemistry = confidence * winRate + (1 - confidence) * EloParameters.CHEMISTRY_NEUTRAL;
+            }
+
+            totalChemistry += chemistry;
+            teammateCount++;
+        }
+
+        // Calculate average chemistry across all teammates
+        const avgChemistry = teammateCount > 0 ? totalChemistry / teammateCount : 0.5;
+
+        // Map chemistry score (0 to 1) to coefficient range
+        // 0.0 chemistry → MIN_COEFFICIENT (0.85)
+        // 0.5 chemistry → 1.0 (neutral)
+        // 1.0 chemistry → MAX_COEFFICIENT (1.15)
+        const coefficientRange = EloParameters.CHEMISTRY_MAX_COEFFICIENT - EloParameters.CHEMISTRY_MIN_COEFFICIENT;
+        const chemistryCoefficient = EloParameters.CHEMISTRY_MIN_COEFFICIENT + (coefficientRange * avgChemistry);
+
+        return chemistryCoefficient;
+    }
+
 
 
     private getQFactor(): number {

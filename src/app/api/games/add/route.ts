@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 interface PlayerGoals {
   playerId: number;
   goals: number;
+  goalkeeper?: boolean;
 }
 
 /**
@@ -13,8 +14,8 @@ interface PlayerGoals {
  *
  * Request body:
  * {
- *   homeTeamPlayers: Array<{playerId, goals}>,
- *   awayTeamPlayers: Array<{playerId, goals}>,
+ *   homeTeamPlayers: Array<{playerId, goals, goalkeeper?}>,
+ *   awayTeamPlayers: Array<{playerId, goals, goalkeeper?}>,
  *   startDateTime: ISO string,
  *   duration: number (seconds)
  * }
@@ -114,10 +115,14 @@ export async function POST(request: Request) {
       }
     }
 
+    // Calculate endDateTime (startDateTime + duration)
+    const endDateTime = new Date(gameStartTime.getTime() + duration * 1000);
+
     // Create the game with HOME and AWAY sides
     const game = await prisma.game.create({
       data: {
         startDateTime: gameStartTime,
+        endDateTime: endDateTime,
         timePlayed: duration,
         teamPlayers: {
           createMany: {
@@ -126,12 +131,14 @@ export async function POST(request: Request) {
                 side: "HOME" as const,
                 playerId: p.playerId,
                 goals: p.goals,
+                goalkeeper: p.goalkeeper || false,
                 fatigueX: fatigueXMap.get(p.playerId) || 0,
               })),
               ...awayTeamPlayers.map((p: PlayerGoals) => ({
                 side: "AWAY" as const,
                 playerId: p.playerId,
                 goals: p.goals,
+                goalkeeper: p.goalkeeper || false,
                 fatigueX: fatigueXMap.get(p.playerId) || 0,
               })),
             ],
@@ -165,31 +172,79 @@ export async function POST(request: Request) {
         // Get all players with their current ELOs
         const allPlayers = await prisma.player.findMany();
         const playerElos = new Map<number, number>();
+        const playerGkElos = new Map<number, number>();
         for (const player of allPlayers) {
           playerElos.set(player.id, player.elo);
+          playerGkElos.set(player.id, player.gkElo);
         }
 
-        // Build player data with fatigueX for ELO calculation
+        // Get player IDs for each team
+        const homePlayerIds = game.teamPlayers.filter((t) => t.side === "HOME").map((tp) => tp.playerId);
+        const awayPlayerIds = game.teamPlayers.filter((t) => t.side === "AWAY").map((tp) => tp.playerId);
+
+        // Helper function to get chemistry data for a player with teammates
+        const getChemistryData = async (playerId: number, teammateIds: number[]) => {
+          const chemistryData = [];
+
+          for (const teammateId of teammateIds) {
+            // Fetch PlayerLink for this player pair (considering only games before current game)
+            const [p1, p2] = [playerId, teammateId].sort((a, b) => a - b);
+            const playerLink = await prisma.playerLink.findUnique({
+              where: {
+                player1Id_player2Id: { player1Id: p1, player2Id: p2 },
+              },
+            });
+
+            chemistryData.push({
+              playerId: teammateId,
+              wins: playerLink?.wins || 0,
+              losses: playerLink?.losses || 0,
+              draws: playerLink?.draws || 0,
+            });
+          }
+
+          return chemistryData;
+        };
+
+        // Build player data with fatigueX and chemistry for ELO calculation
         const homePlayersData = [];
         const awayPlayersData = [];
 
         for (const tp of game.teamPlayers.filter((t) => t.side === "HOME")) {
+          const teammateIds = homePlayerIds.filter((id) => id !== tp.playerId);
+          const teammatesChemistry = await getChemistryData(tp.playerId, teammateIds);
+
+          // Use position-specific ELO: gkElo if goalkeeper, else regular elo
+          const currentElo = tp.goalkeeper
+            ? (playerGkElos.get(tp.playerId) || 1500)
+            : (playerElos.get(tp.playerId) || 1500);
+
           homePlayersData.push({
             playerId: tp.playerId,
-            elo: playerElos.get(tp.playerId) || 1500,
+            elo: currentElo,
             goals: tp.goals,
             gamesPlayed: 0, // Will be calculated from all games
             fatigueX: tp.fatigueX,
+            teammatesChemistry,
           });
         }
 
         for (const tp of game.teamPlayers.filter((t) => t.side === "AWAY")) {
+          const teammateIds = awayPlayerIds.filter((id) => id !== tp.playerId);
+          const teammatesChemistry = await getChemistryData(tp.playerId, teammateIds);
+
+          // Use position-specific ELO: gkElo if goalkeeper, else regular elo
+          const currentElo = tp.goalkeeper
+            ? (playerGkElos.get(tp.playerId) || 1500)
+            : (playerElos.get(tp.playerId) || 1500);
+
           awayPlayersData.push({
             playerId: tp.playerId,
-            elo: playerElos.get(tp.playerId) || 1500,
+            elo: currentElo,
             goals: tp.goals,
             gamesPlayed: 0, // Will be calculated from all games
             fatigueX: tp.fatigueX,
+            teammatesChemistry,
           });
         }
 
@@ -214,12 +269,24 @@ export async function POST(request: Request) {
             data: { deltaELO: eloChange },
           });
 
-          // Update player ELO
-          const newElo = (playerElos.get(playerId) || 1500) + eloChange;
-          await prisma.player.update({
-            where: { id: playerId },
-            data: { elo: newElo },
-          });
+          // Determine if this player was a goalkeeper in this game
+          const teamPlayer = game.teamPlayers.find(tp => tp.playerId === playerId);
+          const wasGoalkeeper = teamPlayer?.goalkeeper || false;
+
+          // Update the appropriate ELO field
+          if (wasGoalkeeper) {
+            const newGkElo = (playerGkElos.get(playerId) || 1500) + eloChange;
+            await prisma.player.update({
+              where: { id: playerId },
+              data: { gkElo: newGkElo },
+            });
+          } else {
+            const newElo = (playerElos.get(playerId) || 1500) + eloChange;
+            await prisma.player.update({
+              where: { id: playerId },
+              data: { elo: newElo },
+            });
+          }
         }
 
         // Update game with average ELOs
@@ -230,6 +297,72 @@ export async function POST(request: Request) {
             awayTeamAverageElo: awayAvgElo,
           },
         });
+
+        // Update PlayerLinks for this game
+        const homeGoals = homePlayersData.reduce((sum, p) => sum + p.goals, 0);
+        const awayGoals = awayPlayersData.reduce((sum, p) => sum + p.goals, 0);
+
+        // Helper to generate player pairs
+        const generatePlayerPairs = (playerIds: number[]): Array<[number, number]> => {
+          const pairs: Array<[number, number]> = [];
+          for (let i = 0; i < playerIds.length; i++) {
+            for (let j = i + 1; j < playerIds.length; j++) {
+              const [p1, p2] = [playerIds[i], playerIds[j]].sort((a, b) => a - b);
+              pairs.push([p1, p2]);
+            }
+          }
+          return pairs;
+        };
+
+        // Update home team pairs
+        const homePairs = generatePlayerPairs(homePlayerIds);
+        for (const [player1Id, player2Id] of homePairs) {
+          const resultUpdate =
+            homeGoals > awayGoals
+              ? { wins: { increment: 1 } }
+              : homeGoals < awayGoals
+              ? { losses: { increment: 1 } }
+              : { draws: { increment: 1 } };
+
+          await prisma.playerLink.upsert({
+            where: {
+              player1Id_player2Id: { player1Id, player2Id },
+            },
+            create: {
+              player1Id,
+              player2Id,
+              wins: homeGoals > awayGoals ? 1 : 0,
+              losses: homeGoals < awayGoals ? 1 : 0,
+              draws: homeGoals === awayGoals ? 1 : 0,
+            },
+            update: resultUpdate,
+          });
+        }
+
+        // Update away team pairs
+        const awayPairs = generatePlayerPairs(awayPlayerIds);
+        for (const [player1Id, player2Id] of awayPairs) {
+          const resultUpdate =
+            awayGoals > homeGoals
+              ? { wins: { increment: 1 } }
+              : awayGoals < homeGoals
+              ? { losses: { increment: 1 } }
+              : { draws: { increment: 1 } };
+
+          await prisma.playerLink.upsert({
+            where: {
+              player1Id_player2Id: { player1Id, player2Id },
+            },
+            create: {
+              player1Id,
+              player2Id,
+              wins: awayGoals > homeGoals ? 1 : 0,
+              losses: awayGoals < homeGoals ? 1 : 0,
+              draws: awayGoals === homeGoals ? 1 : 0,
+            },
+            update: resultUpdate,
+          });
+        }
       } catch (eloError) {
         console.error("Error computing ELO for latest game:", eloError);
         // Don't fail the game creation if ELO computation fails

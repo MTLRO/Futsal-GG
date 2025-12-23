@@ -22,10 +22,19 @@ export async function GET() {
       const games = player.teamPlayers.map((tp) => tp.game);
       const gamesPlayed = new Set(games.map((g) => g.id)).size;
 
+      // Count games by position
+      const gkGames = player.teamPlayers.filter(tp => tp.goalkeeper).length;
+      const playerGames = player.teamPlayers.filter(tp => !tp.goalkeeper).length;
+
+      // Calculate weighted average ELO
+      const weightedElo = gamesPlayed === 0
+        ? 1500
+        : Math.round((player.gkElo * gkGames + player.elo * playerGames) / gamesPlayed);
+
       return {
         id: player.id,
         playerName: `${player.name} ${player.lastName.charAt(0)}.`,
-        currentElo: player.elo,
+        currentElo: weightedElo,
         gamesPlayed,
       }
     })

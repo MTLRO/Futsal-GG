@@ -181,33 +181,5 @@ export class EloCalculator {
         return weights;
     }
 
-    /**
-     * Inverts performance weights for losses.
-     * This ensures goal scorers lose significantly less ELO on losses.
-     * Uses reciprocal-based inversion for strong effect.
-     */
-    private invertPerformanceWeights(weights: Map<Player, number>): Map<Player, number> {
-        const invertedWeights = new Map<Player, number>();
 
-        // Use reciprocal inversion: 1/weight
-        // This creates a strong inverse effect where high performers get very low weights on losses
-        let totalInvertedWeight = 0;
-        const tempWeights = new Map<Player, number>();
-
-        for (const [player, weight] of weights) {
-            const invertedWeight = 1 / weight;
-            tempWeights.set(player, invertedWeight);
-            totalInvertedWeight += invertedWeight;
-        }
-
-        // Normalize so they sum to same total as original for fair distribution
-        const originalTotal = Array.from(weights.values()).reduce((a, b) => a + b, 0);
-        const scaleFactor = originalTotal / totalInvertedWeight;
-
-        for (const [player, invertedWeight] of tempWeights) {
-            invertedWeights.set(player, invertedWeight * scaleFactor);
-        }
-
-        return invertedWeights;
-    }
 }

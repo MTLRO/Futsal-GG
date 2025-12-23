@@ -2,15 +2,12 @@
 
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import Link from "next/link"
 import { ScoreboardTable } from "@/components/scoreboard-table"
-import { AddPlayerModal } from "@/components/add-player-modal"
-import { ChangeTeamsModal } from "@/components/change-teams-modal"
-import { AddGameModal } from "@/components/add-game-modal"
-import { AddVideoModal } from "@/components/add-video-modal"
-import { GameHistoryModal } from "@/components/game-history-modal"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { RefreshCw, Lock, Unlock } from "lucide-react"
+import { RefreshCw, Lock, Unlock, History, UserPlus, Users } from "lucide-react"
+import { useAdmin } from "@/contexts/admin-context"
 
 interface ScoreboardEntry {
   playerId: number
@@ -33,7 +30,7 @@ const fetchScoreboard = async (): Promise<ScoreboardEntry[]> => {
 
 export default function Home() {
   const queryClient = useQueryClient()
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const { isAuthenticated, setIsAuthenticated } = useAdmin()
   const [password, setPassword] = useState("")
   const [authError, setAuthError] = useState("")
   const [isVerifying, setIsVerifying] = useState(false)
@@ -118,7 +115,12 @@ export default function Home() {
 
         {/* Game History Button */}
         <div className="mb-4 flex justify-center">
-          <GameHistoryModal />
+          <Link href="/games/history">
+            <Button variant="outline">
+              <History className="mr-2 h-4 w-4" />
+              Game History
+            </Button>
+          </Link>
         </div>
 
         {/* Scoreboard and Admin Section Container */}
@@ -168,10 +170,23 @@ export default function Home() {
               </div>
             ) : (
               <>
-                <AddPlayerModal onPlayerAdded={() => refetch()} />
-                <ChangeTeamsModal />
-                <AddGameModal />
-                <AddVideoModal />
+                <Link href="/admin/players/add">
+                  <Button size="lg" className="gap-2 min-h-[48px] w-full">
+                    <UserPlus className="h-5 w-5" />
+                    Add Player
+                  </Button>
+                </Link>
+                <Link href="/admin/teams">
+                  <Button size="lg" className="gap-2 min-h-[48px] w-full">
+                    <Users className="h-5 w-5" />
+                    Change Teams
+                  </Button>
+                </Link>
+                <Link href="/admin/games/add">
+                  <Button size="lg" className="gap-2 min-h-[48px] w-full">
+                    Add Game
+                  </Button>
+                </Link>
                 <Button
                   onClick={() => recomputeEloMutation.mutate()}
                   disabled={recomputeEloMutation.isPending}
