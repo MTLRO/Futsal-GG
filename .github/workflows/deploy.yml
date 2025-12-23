@@ -98,7 +98,7 @@ jobs:
           password: ${{ secrets.VPS_PASSWORD }}
           port: 22
           script: |
-            cd /opt/futsal-gg
+            cd /home/futsal/futsal-gg
 
             # Pull latest changes
             git pull origin master
