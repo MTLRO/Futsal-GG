@@ -16,6 +16,10 @@ interface ScoreboardEntry {
   gamesPlayed: number
   goalsScored: number
   elo: number
+  playerElo: number
+  gkElo: number
+  playerGames: number
+  gkGames: number
   last5GamesDeltaELO: number
 }
 
