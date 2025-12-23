@@ -12,12 +12,15 @@ import { ArrowUp, ArrowDown, Minus } from "lucide-react"
 import { GameCard } from "./game-card"
 
 interface Player {
+  playerId: number
   name: string
   lastName: string
   elo: number
   deltaELO: number
   goals: number
-  gameInARow: number
+  fatigueX: number
+  goalkeeper?: boolean
+  goalTimestamps?: (number | null)[]
 }
 
 interface GameHistoryEntry {
@@ -29,6 +32,7 @@ interface GameHistoryEntry {
   team2AverageElo: number
   timePlayed: number | null
   videoLink: string | null
+  videoTimestamp: number | null
   team1Score: number
   team2Score: number
 }
@@ -91,17 +95,19 @@ export function PlayerGameHistoryModal({
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
-  const getFatigueConfig = (gameInARow: number) => {
-    if (gameInARow === 1) {
+  const getFatigueConfig = (fatigueX: number) => {
+    if (fatigueX === 0) {
       return { width: 100, bgColor: "bg-green-100/30", textColor: "text-green-700", label: "Fresh" }
-    } else if (gameInARow === 2) {
-      return { width: 75, bgColor: "bg-yellow-100/30", textColor: "text-yellow-700", label: "2nd game" }
-    } else if (gameInARow === 3) {
-      return { width: 50, bgColor: "bg-orange-100/30", textColor: "text-orange-700", label: "3rd game" }
-    } else if (gameInARow === 4) {
-      return { width: 35, bgColor: "bg-red-100/30", textColor: "text-red-700", label: "4th game" }
+    } else if (fatigueX <= 5) {
+      return { width: 100, bgColor: "bg-green-100/30", textColor: "text-green-700", label: "Fresh" }
+    } else if (fatigueX <= 10) {
+      return { width: 75, bgColor: "bg-yellow-100/30", textColor: "text-yellow-700", label: "Moderate" }
+    } else if (fatigueX <= 15) {
+      return { width: 50, bgColor: "bg-orange-100/30", textColor: "text-orange-700", label: "Tired" }
+    } else if (fatigueX <= 20) {
+      return { width: 35, bgColor: "bg-red-100/30", textColor: "text-red-700", label: "Very Tired" }
     } else {
-      return { width: 20, bgColor: "bg-red-200/30", textColor: "text-red-800", label: `${gameInARow}th game` }
+      return { width: 20, bgColor: "bg-red-200/30", textColor: "text-red-800", label: "Exhausted" }
     }
   }
 

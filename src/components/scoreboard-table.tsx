@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import Link from "next/link"
 import {
   Table,
   TableBody,
@@ -9,7 +9,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { PlayerGameHistoryModal } from "./player-game-history-modal"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface ScoreboardEntry {
   playerId: number
@@ -18,6 +23,10 @@ interface ScoreboardEntry {
   gamesPlayed: number
   goalsScored: number
   elo: number
+  playerElo: number
+  gkElo: number
+  playerGames: number
+  gkGames: number
   last5GamesDeltaELO: number
 }
 
@@ -26,9 +35,6 @@ interface ScoreboardTableProps {
 }
 
 export function ScoreboardTable({ data }: ScoreboardTableProps) {
-  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
-  const [selectedPlayerName, setSelectedPlayerName] = useState<string>("")
-
   // Filter players with minimum 12 games, sort by ELO descending, and take top 15
   const sortedData = [...data]
     .filter((entry) => entry.gamesPlayed >= 12)
@@ -69,22 +75,31 @@ export function ScoreboardTable({ data }: ScoreboardTableProps) {
                 <TableRow key={entry.playerId} className={bgClass}>
                   <TableCell className="font-bold text-lg text-center py-2">{index + 1}</TableCell>
                   <TableCell className="text-center py-2">
-                    <button
-                      onClick={() => {
-                        setSelectedPlayerId(entry.playerId)
-                        setSelectedPlayerName(entry.name)
-                      }}
-                      className="font-medium hover:underline cursor-pointer"
+                    <Link
+                      href={`/player/${encodeURIComponent(entry.name)}/elo`}
+                      className="font-medium hover:underline"
                     >
                       {entry.name}
-                    </button>
+                    </Link>
                   </TableCell>
                   <TableCell className="text-center py-2">{entry.gamesPlayed}</TableCell>
                   <TableCell className="text-center font-semibold text-blue-600 py-2">
                     {entry.goalsScored}
                   </TableCell>
                   <TableCell className="text-center font-semibold text-primary py-2">
-                    {entry.elo}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help">{entry.elo}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <div className="text-xs space-y-1">
+                            <div className="font-semibold">Player: {entry.playerElo} ({entry.playerGames} games)</div>
+                            <div className="font-semibold">GK: {entry.gkElo} ({entry.gkGames} games)</div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableCell>
                 </TableRow>
               )
@@ -92,15 +107,6 @@ export function ScoreboardTable({ data }: ScoreboardTableProps) {
           )}
         </TableBody>
       </Table>
-
-      {selectedPlayerId && (
-        <PlayerGameHistoryModal
-          key={selectedPlayerId}
-          playerId={selectedPlayerId}
-          playerName={selectedPlayerName}
-          onClose={() => setSelectedPlayerId(null)}
-        />
-      )}
     </div>
   )
 }

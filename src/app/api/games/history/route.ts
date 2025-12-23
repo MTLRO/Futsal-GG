@@ -4,12 +4,13 @@ import { NextResponse } from "next/server";
 interface GameHistoryEntry {
   gameId: number;
   dateTime: string;
-  team1Players: Array<{ name: string; lastName: string; elo: number; deltaELO: number; goals: number; gameInARow: number }>;
+  team1Players: Array<{ playerId: number; name: string; lastName: string; elo: number; deltaELO: number; goals: number; fatigueX: number; goalkeeper?: boolean; goalTimestamps?: (number | null)[] }>;
   team1AverageElo: number;
-  team2Players: Array<{ name: string; lastName: string; elo: number; deltaELO: number; goals: number; gameInARow: number }>;
+  team2Players: Array<{ playerId: number; name: string; lastName: string; elo: number; deltaELO: number; goals: number; fatigueX: number; goalkeeper?: boolean; goalTimestamps?: (number | null)[] }>;
   team2AverageElo: number;
   timePlayed: number | null;
   videoLink: string | null;
+  videoTimestamp: number | null;
   team1Score: number;
   team2Score: number;
 }
@@ -27,6 +28,11 @@ export async function GET() {
         teamPlayers: {
           include: {
             player: true,
+            goalDetails: {
+              orderBy: {
+                createdAt: 'asc',
+              },
+            },
           },
         },
       },
@@ -71,23 +77,29 @@ export async function GET() {
       const homeTeamPlayers = game.teamPlayers
         .filter((tp) => tp.side === "HOME")
         .map((tp) => ({
+          playerId: tp.playerId,
           name: tp.player.name,
           lastName: tp.player.lastName,
           elo: gameElos.get(tp.playerId) || 1500,
           deltaELO: tp.deltaELO,
           goals: tp.goals,
-          gameInARow: tp.gameInARow,
+          fatigueX: tp.fatigueX,
+          goalkeeper: tp.goalkeeper,
+          goalTimestamps: tp.goalDetails.map(g => g.timestamp),
         }));
 
       const awayTeamPlayers = game.teamPlayers
         .filter((tp) => tp.side === "AWAY")
         .map((tp) => ({
+          playerId: tp.playerId,
           name: tp.player.name,
           lastName: tp.player.lastName,
           elo: gameElos.get(tp.playerId) || 1500,
           deltaELO: tp.deltaELO,
           goals: tp.goals,
-          gameInARow: tp.gameInARow,
+          fatigueX: tp.fatigueX,
+          goalkeeper: tp.goalkeeper,
+          goalTimestamps: tp.goalDetails.map(g => g.timestamp),
         }));
 
       // Use stored average ELO from time of game (or calculate if not stored)
@@ -127,6 +139,7 @@ export async function GET() {
         team2AverageElo: awayAverageElo,
         timePlayed: game.timePlayed,
         videoLink: game.videoLink,
+        videoTimestamp: game.videoTimestamp,
         team1Score: homeScore,
         team2Score: awayScore,
       };

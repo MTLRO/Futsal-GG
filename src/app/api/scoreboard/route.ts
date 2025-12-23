@@ -7,7 +7,11 @@ interface ScoreboardEntry {
   lastName: string;
   gamesPlayed: number;
   goalsScored: number;
-  elo: number;
+  elo: number; // Weighted average ELO
+  playerElo: number; // Regular player ELO
+  gkElo: number; // Goalkeeper ELO
+  playerGames: number; // Games played as regular player
+  gkGames: number; // Games played as goalkeeper
   last5GamesDeltaELO: number;
 }
 
@@ -31,6 +35,15 @@ export async function GET() {
         const uniqueGameIds = new Set(teamPlayers.map((tp) => tp.gameId));
         const gamesPlayed = uniqueGameIds.size;
 
+        // Count games by position
+        const gkGames = teamPlayers.filter(tp => tp.goalkeeper).length;
+        const playerGames = teamPlayers.filter(tp => !tp.goalkeeper).length;
+
+        // Calculate weighted average ELO
+        const weightedElo = gamesPlayed === 0
+          ? 1500
+          : Math.round((player.gkElo * gkGames + player.elo * playerGames) / gamesPlayed);
+
         // Calculate total goals scored
         const goalsScored = teamPlayers.reduce((sum, tp) => sum + tp.goals, 0);
 
@@ -50,7 +63,11 @@ export async function GET() {
           lastName: player.lastName,
           gamesPlayed,
           goalsScored,
-          elo: player.elo,
+          elo: weightedElo,
+          playerElo: player.elo,
+          gkElo: player.gkElo,
+          playerGames,
+          gkGames,
           last5GamesDeltaELO,
         };
       })

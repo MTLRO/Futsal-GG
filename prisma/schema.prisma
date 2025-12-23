@@ -12,20 +12,26 @@ model Player {
   name         String
   lastName     String
   elo          Int           @default(1500)
+  gkElo        Int           @default(1500)
+  fatigueX     Int           @default(0)
   teamPlayers  TeamPlayer[]
+  linksAsPlayer1 PlayerLink[] @relation("Player1Links")
+  linksAsPlayer2 PlayerLink[] @relation("Player2Links")
   @@index([lastName, name])
 }
 
 model TeamPlayer {
-  id         Int   @id @default(autoincrement())
+  id         Int     @id @default(autoincrement())
   side       Side
   playerId   Int
-  goals      Int   @default(0)
-  deltaELO   Int   @default(0)
-  gameInARow Int   @default(1)  // Number of games in a row this player played (for fatigue tracking)
+  goals      Int     @default(0)
+  deltaELO   Int     @default(0)
+  fatigueX   Int     @default(0)  // Fatigue in minutes: increases by game duration, decreases by 1 per minute not playing
+  goalkeeper Boolean @default(false)
   player     Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
   gameId     Int
   game       Game  @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  goalDetails Goal[]
 
   @@index([playerId])
   @@index([gameId])
@@ -34,8 +40,10 @@ model TeamPlayer {
 model Game {
   id                    Int          @id @default(autoincrement())
   startDateTime         DateTime
+  endDateTime           DateTime?    // Game end time (null for live/ongoing games)
   timePlayed            Int?
   videoLink             String?
+  videoTimestamp        Int?         // Video start timestamp in seconds
   homeTeamAverageElo    Int?         // Average ELO of HOME team at game time
   awayTeamAverageElo    Int?         // Average ELO of AWAY team at game time
   teamPlayers           TeamPlayer[]
@@ -63,7 +71,33 @@ enum Team {
   C
 }
 
+model Goal {
+  id           Int        @id @default(autoincrement())
+  teamPlayerId Int
+  teamPlayer   TeamPlayer @relation(fields: [teamPlayerId], references: [id], onDelete: Cascade)
+  timestamp    Int?       // Goal timestamp in seconds (relative to video)
+  createdAt    DateTime   @default(now())
+
+  @@index([teamPlayerId])
+}
+
 enum Side {
   HOME
   AWAY
+}
+
+model PlayerLink {
+  id        Int @id @default(autoincrement())
+  player1Id Int
+  player2Id Int
+  wins      Int @default(0)
+  losses    Int @default(0)
+  draws     Int @default(0)
+
+  player1   Player @relation("Player1Links", fields: [player1Id], references: [id], onDelete: Cascade)
+  player2   Player @relation("Player2Links", fields: [player2Id], references: [id], onDelete: Cascade)
+
+  @@unique([player1Id, player2Id])
+  @@index([player1Id])
+  @@index([player2Id])
 }

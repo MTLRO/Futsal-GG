@@ -32,12 +32,6 @@ export class EloParameters {
      */
     public static readonly FATIGUE_COEFFICIENT = 0.05;
 
-    /**
-     * The minimum number of consecutive games before fatigue starts accumulating.
-     * Players playing this many games or fewer have no fatigue penalty.
-     * Current: 1 means fatigue starts on the 2nd consecutive game.
-     */
-    public static readonly MIN_GAMES_FOR_FATIGUE = 1;
 
     /**
      * Multiplier applied when a player has no fatigue (full strength).
@@ -153,6 +147,44 @@ export class EloParameters {
     public static readonly NO_IMPACT = 0.40;
 
     // ============================================================================
+    // Goal Scoring Bonuses
+    // ============================================================================
+
+    /**
+     * Bonus multiplier for scoring a single goal.
+     */
+    public static readonly SINGLE_GOAL_BONUS = 0.15;
+
+    /**
+     * Bonus multiplier for scoring two goals.
+     */
+    public static readonly DOUBLE_GOAL_BONUS = 0.35;
+
+    // ============================================================================
+    // Goalkeeper Bonuses
+    // ============================================================================
+
+    /**
+     * Coefficient applied to goal bonuses for goalkeepers (they score less often).
+     */
+    public static readonly GK_GOAL_COEF = 2.0;
+
+    /**
+     * Bonus for goalkeeper when no goals are allowed (clean sheet).
+     */
+    public static readonly CLEAN_SHEET_BONUS = 0.4;
+
+    /**
+     * Bonus for goalkeeper when only one goal is allowed.
+     */
+    public static readonly ONE_GOAL_ALLOWED_BONUS = 0.2;
+
+    /**
+     * Bonus for goalkeeper when only two goals are allowed.
+     */
+    public static readonly TWO_GOALS_ALLOWED_BONUS = 0.1;
+
+    // ============================================================================
     // Team Configuration
     // ============================================================================
 
@@ -162,4 +194,37 @@ export class EloParameters {
      * Current: 5 (standard futsal team size).
      */
     public static readonly TEAM_SIZE = 5;
+
+    // ============================================================================
+    // Chemistry System
+    // ============================================================================
+
+    /**
+     * Minimum chemistry coefficient (maximum penalty for poor chemistry).
+     * Applied when a player consistently loses with their teammates.
+     * Range: 0.85 = 15% ELO penalty for terrible team chemistry.
+     */
+    public static readonly CHEMISTRY_MIN_COEFFICIENT = 0.65;
+
+    /**
+     * Maximum chemistry coefficient (maximum bonus for excellent chemistry).
+     * Applied when a player consistently wins with their teammates.
+     * Range: 1.15 = 15% ELO bonus for perfect team chemistry.
+     */
+    public static readonly CHEMISTRY_MAX_COEFFICIENT = 1.45;
+
+    /**
+     * Default chemistry value for unknown pairings (never played together).
+     * Set slightly below neutral (0.5) to create a small penalty for unfamiliar teammates.
+     * This encourages team stability and rewards players who develop chemistry.
+     */
+    public static readonly CHEMISTRY_NEUTRAL = 0.45;
+
+    /**
+     * Number of games played together required for full chemistry confidence.
+     * Chemistry weight increases linearly from 0 to 1 as games approach this threshold.
+     * Formula: confidence = min(1, totalGames / GAMES_FOR_FULL_CONFIDENCE)
+     * Current: 10 games means chemistry data is fully trusted after 10 games together.
+     */
+    public static readonly GAMES_FOR_FULL_CONFIDENCE = 10;
 }

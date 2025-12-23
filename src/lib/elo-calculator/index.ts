@@ -1,52 +1,78 @@
-import {Player} from "./Player";
+import {Player, ChemistryData} from "./Player";
 import {Team} from "./Team";
 import {Game} from "./Game";
 import {EloCalculator} from "./EloCalculator";
 
 interface PlayerData {
     playerId: number;
+    name?: string;
     elo: number;
     goals: number;
     gamesPlayed: number;
-    gameInARow: number;
+    fatigueX: number; // Fatigue in minutes: increases by game duration, decreases by 1 per minute not playing
+    isGoalKeeper?: boolean;
+    teammatesChemistry?: ChemistryData[]; // Chemistry data with current teammates
 }
 
 /**
  * Calculate ELO changes for all players in a game.
- * This is a wrapper function that maintains backward compatibility with the existing API
- * while using the new class-based architecture internally.
  *
  * @param homeTeamPlayers - Array of player data for the home team
  * @param awayTeamPlayers - Array of player data for the away team
+ * @param homeGoalKeeperId - Optional goalkeeper player ID for home team
+ * @param awayGoalKeeperId - Optional goalkeeper player ID for away team
  * @returns Map of playerId to ELO change (positive for gain, negative for loss)
  */
 export function calculateGameElos(
     homeTeamPlayers: PlayerData[],
-    awayTeamPlayers: PlayerData[]
+    awayTeamPlayers: PlayerData[],
+    homeGoalKeeperId?: number,
+    awayGoalKeeperId?: number
 ): Map<number, number> {
     // Create Player instances for home team
     const homePlayers = homeTeamPlayers.map(
-        (p) => new Player(p.playerId, `Player ${p.playerId}`, p.goals, p.gameInARow, p.elo, p.gamesPlayed)
+        (p) => new Player(p.playerId, p.name ?? `Player ${p.playerId}`, p.fatigueX, p.gamesPlayed, p.elo, p.teammatesChemistry ?? [])
     );
 
     // Create Player instances for away team
     const awayPlayers = awayTeamPlayers.map(
-        (p) => new Player(p.playerId, `Player ${p.playerId}`, p.goals, p.gameInARow, p.elo, p.gamesPlayed)
+        (p) => new Player(p.playerId, p.name ?? `Player ${p.playerId}`, p.fatigueX, p.gamesPlayed, p.elo, p.teammatesChemistry ?? [])
     );
 
+    // Determine goalkeeper IDs (use -1 if not specified, meaning no goalkeeper bonus)
+    const homeGkId = homeGoalKeeperId ?? homeTeamPlayers.find(p => p.isGoalKeeper)?.playerId ?? -1;
+    const awayGkId = awayGoalKeeperId ?? awayTeamPlayers.find(p => p.isGoalKeeper)?.playerId ?? -1;
+
     // Create Team instances
-    const homeTeam = new Team(homePlayers);
-    const awayTeam = new Team(awayPlayers);
+    const homeTeam = new Team(homePlayers, homeGkId);
+    const awayTeam = new Team(awayPlayers, awayGkId);
 
-    // Create Game instance (length doesn't affect ELO calculation, using 0 as placeholder)
-    const game = new Game(homeTeam, awayTeam, 0);
+    // Create player goals map
+    const playerGoals = new Map<Player, number>();
+    homeTeamPlayers.forEach((p, i) => {
+        playerGoals.set(homePlayers[i], p.goals);
+    });
+    awayTeamPlayers.forEach((p, i) => {
+        playerGoals.set(awayPlayers[i], p.goals);
+    });
 
-    // Create EloCalculator and calculate all ELO changes
+    // Create Game instance
+    const game = new Game(homeTeam, awayTeam, playerGoals);
+
+    // Create EloCalculator and get ELO changes
     const calculator = new EloCalculator(game);
+    const playerEloChanges = calculator.getPlayerEloChanges();
 
-    return calculator.calculateGameElos();
+    // Convert to Map<playerId, eloChange>
+    const result = new Map<number, number>();
+    for (const [player, eloChange] of playerEloChanges) {
+        result.set(player.playerId, eloChange);
+    }
+
+    return result;
 }
 
 // Export the classes for direct use if needed
 export { Player, Team, Game, EloCalculator };
 export { EloParameters } from "./EloParameters";
+export type { ChemistryData };
