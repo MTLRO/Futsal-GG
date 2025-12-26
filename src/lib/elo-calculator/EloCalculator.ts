@@ -1,8 +1,7 @@
-import {Game, GameResult} from "./Game"
+import {Game} from "./Game"
 import {Player} from "./Player"
 import {Team} from "./Team"
 import {EloParameters} from "./EloParameters"
-import {Result} from "./Result"
 
 export class EloCalculator {
 

@@ -1,12 +1,11 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, Video, Trophy, Plus, Minus } from "lucide-react"
-import PanToolIcon from "@mui/icons-material/PanTool"
+import { ChevronDown, Video, Trophy, Plus, Minus, Hand } from "lucide-react"
 import { VideoManageModal } from "@/components/video-manage-modal"
 import { useAdmin } from "@/contexts/admin-context"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
@@ -108,7 +107,7 @@ function PlayerRow({ player, gameId, isEditMode, getFatigueConfig, getEloIcon, g
           <div className="flex items-center gap-1.5">
             <span className="font-medium">{player.name}</span>
             {player.goalkeeper && (
-              <PanToolIcon sx={{ fontSize: 16, color: '#2563eb' }} />
+              <Hand className="w-4 h-4 text-blue-600" />
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -147,11 +146,11 @@ function PlayerRow({ player, gameId, isEditMode, getFatigueConfig, getEloIcon, g
             <Button
               size="sm"
               variant={player.goalkeeper ? "default" : "outline"}
-              className="h-7 px-2 text-xs"
+              className="h-7 px-2 text-xs gap-1"
               onClick={handleGoalkeeperToggle}
               disabled={updatePlayerMutation.isPending}
             >
-              <PanToolIcon sx={{ fontSize: 12, marginRight: '4px' }} />
+              <Hand className="w-3 h-3" />
               GK
             </Button>
           </div>
