@@ -57,10 +57,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Calculate fatigueX for each player based on game duration and time since last game
+    // Calculate fatigueX for each player based on time since last game
     const gameStartTime = new Date(startDateTime);
-    const gameDurationMinutes = Math.round((duration || 0) / 60); // Convert seconds to minutes
-
     const fatigueXMap = new Map<number, number>();
 
     for (const playerId of allPlayerIds) {
