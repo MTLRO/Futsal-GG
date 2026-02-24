@@ -6,7 +6,8 @@ import Link from "next/link"
 import { ScoreboardTable } from "@/components/scoreboard-table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { RefreshCw, Lock, Unlock, History, UserPlus, Users, Sun, Moon, Search, X } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { RefreshCw, Lock, Unlock, History, UserPlus, Users, Sun, Moon, ShieldCheck } from "lucide-react"
 import { useAdmin } from "@/contexts/admin-context"
 import { useTheme } from "@/contexts/theme-context"
 
@@ -37,15 +38,15 @@ export default function Home() {
   const queryClient = useQueryClient()
   const { isAuthenticated, setIsAuthenticated, logout } = useAdmin()
   const { theme, toggleTheme } = useTheme()
-  const [searchQuery, setSearchQuery] = useState("")
   const [password, setPassword] = useState("")
   const [authError, setAuthError] = useState("")
   const [isVerifying, setIsVerifying] = useState(false)
+  const [showGameMasterDialog, setShowGameMasterDialog] = useState(false)
 
   const { data: scoreboard = [], isLoading: loading, error, refetch } = useQuery({
     queryKey: ["scoreboard"],
     queryFn: fetchScoreboard,
-    refetchInterval: 30000, // Auto-refresh every 30 seconds (reduced from 5s)
+    refetchInterval: 30000,
   })
 
   const recomputeEloMutation = useMutation({
@@ -76,9 +77,7 @@ export default function Home() {
     try {
       const response = await fetch("/api/auth/verify", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       })
 
@@ -88,6 +87,7 @@ export default function Home() {
         setIsAuthenticated(true)
         setPassword("")
         setAuthError("")
+        setShowGameMasterDialog(false)
       } else {
         setAuthError("Invalid password")
       }
@@ -111,87 +111,53 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="mb-8 text-center relative">
+    <div className="flex flex-col h-screen bg-background">
+      {/* Sticky Header */}
+      <header className="shrink-0 z-40 bg-black text-white flex items-center justify-between px-4 h-12">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          className="text-white hover:text-white hover:bg-white/10"
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+        </Button>
+
+        <h1 className="text-xl font-bold tracking-wide">Futsal GG</h1>
+
+        <Link href="/games/history">
           <Button
             variant="ghost"
             size="icon"
-            onClick={toggleTheme}
-            className="absolute right-0 top-0"
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            className="text-white hover:text-white hover:bg-white/10"
+            title="Game History"
           >
-            {theme === "dark" ? (
-              <Sun className="h-5 w-5" />
-            ) : (
-              <Moon className="h-5 w-5" />
-            )}
+            <History className="h-5 w-5" />
           </Button>
-          <h1 className="text-4xl sm:text-5xl font-bold text-primary mb-2">
-            Futsal GG
-          </h1>
-        </header>
+        </Link>
+      </header>
 
-        {/* Game History Button */}
-        <div className="mb-4 flex justify-center">
-          <Link href="/games/history">
-            <Button variant="outline">
-              <History className="mr-2 h-4 w-4" />
-              Game History
-            </Button>
-          </Link>
-        </div>
-
-        {/* Scoreboard and Admin Section Container */}
-        <div className="w-fit mx-auto">
+      {/* Main content — fills remaining height */}
+      <div className="flex-1 overflow-hidden flex flex-col p-2 sm:p-4 pb-14 sm:pb-4">
+        <div className="flex-1 overflow-hidden w-fit mx-auto flex flex-col gap-2">
           {/* Scoreboard */}
-          <main className="mb-4">
+          <main className="flex-1 overflow-hidden">
             {loading ? (
-              <div className="flex justify-center items-center py-20">
+              <div className="flex justify-center items-center h-full">
                 <div className="text-muted-foreground">Loading scoreboard...</div>
               </div>
             ) : error ? (
-              <div className="flex justify-center items-center py-20">
-                <div className="text-red-600">
-                  Error: {error.message}
-                </div>
+              <div className="flex justify-center items-center h-full">
+                <div className="text-red-600">Error: {error.message}</div>
               </div>
             ) : (
-              <ScoreboardTable data={scoreboard} searchQuery={searchQuery} />
+              <ScoreboardTable data={scoreboard} />
             )}
           </main>
 
-          {/* Search Bar - Under Scoreboard */}
-          <div className="relative w-full mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="search"
-              placeholder="Search players..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm pl-9 pr-8"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              data-lpignore="true"
-              data-form-type="other"
-            />
-            {searchQuery && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
-                onClick={() => setSearchQuery("")}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-
-          {/* Admin Section */}
-          <div className="flex flex-col gap-2 w-full">
+          {/* Admin Section — desktop only */}
+          <div className="hidden sm:flex flex-col gap-2 w-full shrink-0">
             {!isAuthenticated ? (
               <div className="flex flex-col gap-2 w-full">
                 <Input
@@ -203,18 +169,11 @@ export default function Home() {
                   disabled={isVerifying}
                   className="w-full"
                 />
-                <Button
-                  onClick={verifyPassword}
-                  disabled={isVerifying}
-                  variant="default"
-                  className="w-full"
-                >
+                <Button onClick={verifyPassword} disabled={isVerifying} variant="default" className="w-full">
                   <Unlock className="mr-2 h-4 w-4" />
                   {isVerifying ? "Verifying..." : "Unlock"}
                 </Button>
-                {authError && (
-                  <p className="text-sm text-red-600">{authError}</p>
-                )}
+                {authError && <p className="text-sm text-red-600">{authError}</p>}
               </div>
             ) : (
               <>
@@ -244,12 +203,7 @@ export default function Home() {
                   <RefreshCw className="mr-2 h-4 w-4" />
                   {recomputeEloMutation.isPending ? "Computing..." : "Recompute ELO"}
                 </Button>
-                <Button
-                  onClick={handleLock}
-                  variant="outline"
-                  className="w-full"
-                  title="Lock admin controls"
-                >
+                <Button onClick={handleLock} variant="outline" className="w-full" title="Lock admin controls">
                   <Lock className="mr-2 h-4 w-4" />
                   Lock
                 </Button>
@@ -258,6 +212,77 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Fixed Footer — mobile only */}
+      <div className="fixed bottom-0 left-0 right-0 sm:hidden bg-black text-white z-40 h-14 flex items-center justify-center px-4">
+        {isAuthenticated ? (
+          <div className="flex items-center gap-3 w-full justify-center">
+            <Link href="/admin/players/add">
+              <Button size="sm" variant="ghost" className="text-white hover:text-white hover:bg-white/10 gap-1">
+                <UserPlus className="h-4 w-4" />
+                Add Player
+              </Button>
+            </Link>
+            <Link href="/admin/teams">
+              <Button size="sm" variant="ghost" className="text-white hover:text-white hover:bg-white/10 gap-1">
+                <Users className="h-4 w-4" />
+                Teams
+              </Button>
+            </Link>
+            <Link href="/admin/games/add">
+              <Button size="sm" variant="ghost" className="text-white hover:text-white hover:bg-white/10">
+                Add Game
+              </Button>
+            </Link>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-white hover:text-white hover:bg-white/10"
+              onClick={handleLock}
+              title="Lock"
+            >
+              <Lock className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="ghost"
+            className="text-white hover:text-white hover:bg-white/10 gap-2 text-base font-semibold"
+            onClick={() => setShowGameMasterDialog(true)}
+          >
+            <ShieldCheck className="h-5 w-5" />
+            Game Master
+          </Button>
+        )}
+      </div>
+
+      {/* Game Master Password Dialog */}
+      <Dialog open={showGameMasterDialog} onOpenChange={setShowGameMasterDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              Game Master
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 pt-2">
+            <Input
+              type="password"
+              placeholder="Enter password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={handlePasswordKeyDown}
+              disabled={isVerifying}
+              autoFocus
+            />
+            <Button onClick={verifyPassword} disabled={isVerifying} className="w-full">
+              <Unlock className="mr-2 h-4 w-4" />
+              {isVerifying ? "Verifying..." : "Unlock"}
+            </Button>
+            {authError && <p className="text-sm text-red-600 text-center">{authError}</p>}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
