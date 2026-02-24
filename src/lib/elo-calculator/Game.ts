@@ -1,6 +1,5 @@
 import {Team} from "./Team"
 import {Player} from "./Player"
-import {EloParameters} from "./EloParameters"
 import { Result } from "./Result";
 
 export enum GameResult {

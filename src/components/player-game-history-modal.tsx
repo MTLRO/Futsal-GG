@@ -52,11 +52,9 @@ const fetchGameHistory = async (): Promise<GameHistoryEntry[]> => {
   return data.gameHistory
 }
 
-export function PlayerGameHistoryModal({
-  playerId,
-  playerName,
-  onClose,
-}: PlayerGameHistoryModalProps) {
+export function PlayerGameHistoryModal(props: PlayerGameHistoryModalProps) {
+  const { playerName, onClose } = props
+  // playerId available in props for future API filtering
   const [open, setOpen] = useState(true)
 
   const { data: allGames = [], isLoading, error } = useQuery({
