@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, use } from "react"
 import { CheckCircle, Clock, Trophy, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-import { PICK_ORDER } from "@/lib/draft-utils"
+import { PICK_ORDER, TOTAL_PICKS } from "@/lib/draft-utils"
 
 const CAPTAIN_COLORS = [
   { bg: "bg-blue-500", light: "bg-blue-100", text: "text-blue-700", border: "border-blue-300", label: "Team Blue" },
@@ -29,6 +29,9 @@ interface DraftState {
   captain1Token: string
   captain2Token: string
   captain3Token: string
+  captain1PlayerId: number | null
+  captain2PlayerId: number | null
+  captain3PlayerId: number | null
 }
 
 export default function DraftPage({ params }: { params: Promise<{ token: string }> }) {
@@ -37,11 +40,7 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
   const [error, setError] = useState<string | null>(null)
   const [picking, setPicking] = useState(false)
   const [justPicked, setJustPicked] = useState<number | null>(null)
-  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(() => {
-    if (typeof window === "undefined") return null
-    const stored = localStorage.getItem(`draft-identity-${token}`)
-    return stored ? parseInt(stored, 10) : null
-  })
+  const [identifying, setIdentifying] = useState(false)
 
   const fetchState = useCallback(async () => {
     try {
@@ -62,14 +61,39 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
     fetchState()
   }, [fetchState])
 
-  // Poll every 2.5s when it's not our turn (or session is active)
+  // Poll when waiting for other captains to identify, or waiting for our turn
   useEffect(() => {
     if (!state || state.status === "COMPLETED") return
-    if (state.currentCaptain === state.captainIndex) return // It's our turn, no need to poll
 
-    const interval = setInterval(fetchState, 2500)
-    return () => clearInterval(interval)
+    const captainPlayerIds = [state.captain1PlayerId, state.captain2PlayerId, state.captain3PlayerId]
+    const allIdentified = captainPlayerIds.every((id) => id !== null)
+
+    if (!allIdentified || state.currentCaptain !== state.captainIndex) {
+      const interval = setInterval(fetchState, 2500)
+      return () => clearInterval(interval)
+    }
   }, [state, fetchState])
+
+  const handleIdentitySelect = async (playerId: number) => {
+    setIdentifying(true)
+    try {
+      const res = await fetch(`/api/draft/${token}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error || "Failed to set identity")
+        return
+      }
+      await fetchState()
+    } catch {
+      setError("Failed to set identity")
+    } finally {
+      setIdentifying(false)
+    }
+  }
 
   const handlePick = async (playerId: number) => {
     if (!state || picking) return
@@ -118,7 +142,13 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
     )
   }
 
-  if (selectedPlayerId === null) {
+  const { captainIndex, players, picks, currentPickIndex, currentCaptain, status } = state
+  const captainPlayerIds = [state.captain1PlayerId, state.captain2PlayerId, state.captain3PlayerId]
+  const myCaptainPlayerId = captainIndex !== null ? captainPlayerIds[captainIndex] : null
+  const allIdentified = captainPlayerIds.every((id) => id !== null)
+
+  // Identity selection screen
+  if (captainIndex !== null && myCaptainPlayerId === null) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <div className="sticky top-0 z-20 bg-white border-b border-gray-200 px-4 py-3">
@@ -126,14 +156,16 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
           <p className="text-xs text-gray-500">Select your name from the list</p>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-          {state.players.map((player) => (
+          {players.map((player) => (
             <button
               key={player.id}
-              onClick={() => {
-                localStorage.setItem(`draft-identity-${token}`, String(player.id))
-                setSelectedPlayerId(player.id)
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-200 bg-white hover:border-blue-400 hover:bg-blue-50 active:scale-95 transition-all text-left shadow-sm"
+              disabled={identifying || captainPlayerIds.includes(player.id)}
+              onClick={() => handleIdentitySelect(player.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border transition-all text-left ${
+                captainPlayerIds.includes(player.id)
+                  ? "bg-gray-100 border-gray-200 opacity-50 cursor-not-allowed"
+                  : "bg-white border-gray-200 hover:border-blue-400 hover:bg-blue-50 active:scale-95 shadow-sm cursor-pointer"
+              }`}
             >
               <div className="flex-1">
                 <div className="font-semibold text-sm text-gray-900">
@@ -141,6 +173,9 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
                 </div>
                 <div className="text-xs text-gray-400">{player.elo} ELO</div>
               </div>
+              {captainPlayerIds.includes(player.id) && (
+                <span className="text-xs text-gray-400">Taken</span>
+              )}
             </button>
           ))}
         </div>
@@ -148,22 +183,54 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
     )
   }
 
-  const { captainIndex, players, picks, currentPickIndex, currentCaptain, status } = state
+  // Waiting for other captains to identify
+  if (captainIndex !== null && !allIdentified) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+        <Clock className="w-8 h-8 text-gray-400 animate-pulse mb-3" />
+        <h1 className="text-lg font-bold text-gray-900 mb-1">Waiting for captains</h1>
+        <p className="text-sm text-gray-500 text-center mb-5">
+          Waiting for all captains to identify themselves before the draft begins.
+        </p>
+        <div className="space-y-2 w-full max-w-xs">
+          {[0, 1, 2].map((i) => {
+            const pid = captainPlayerIds[i]
+            const player = pid ? players.find((p) => p.id === pid) : null
+            return (
+              <div
+                key={i}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${CAPTAIN_COLORS[i].light} ${CAPTAIN_COLORS[i].border}`}
+              >
+                <div className={`w-2 h-2 rounded-full ${pid ? CAPTAIN_COLORS[i].bg : "bg-gray-300"}`} />
+                <span className={`text-sm font-semibold ${CAPTAIN_COLORS[i].text}`}>
+                  {CAPTAIN_COLORS[i].label}
+                </span>
+                <span className="text-xs text-gray-500 ml-auto">
+                  {player ? `${player.name} ${player.lastName}` : "Waiting..."}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   const isMyTurn = captainIndex !== null && currentCaptain === captainIndex && status === "ACTIVE"
   const isObserver = captainIndex === null
   const pickedSet = new Set(picks)
+  const captainPlayerSet = new Set(captainPlayerIds.filter((id): id is number => id !== null))
 
-  // Build teams from picks
+  // Build teams: captains first, then draft picks
   const teams: number[][] = [[], [], []]
+  captainPlayerIds.forEach((pid, i) => { if (pid) teams[i].push(pid) })
   for (let i = 0; i < picks.length; i++) {
     teams[PICK_ORDER[i]].push(picks[i])
   }
 
   const getPlayerById = (id: number) => players.find((p) => p.id === id)
 
-  const captainLabel = captainIndex !== null
-    ? CAPTAIN_COLORS[captainIndex].label
-    : "Observer"
+  const captainLabel = captainIndex !== null ? CAPTAIN_COLORS[captainIndex].label : "Observer"
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -184,7 +251,7 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
                 <CheckCircle className="w-4 h-4" /> Complete
               </span>
             ) : (
-              <span className="text-sm text-gray-500">Pick {currentPickIndex + 1} / 15</span>
+              <span className="text-sm text-gray-500">Pick {currentPickIndex + 1} / {TOTAL_PICKS}</span>
             )}
           </div>
         </div>
@@ -221,12 +288,14 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
             Players (ELO ranked)
           </h2>
           {players.map((player, rank) => {
+            const isCaptainPlayer = captainPlayerSet.has(player.id)
+            const captainOwnerIndex = captainPlayerIds.findIndex((id) => id === player.id)
+            const isMe = player.id === myCaptainPlayerId
             const isPicked = pickedSet.has(player.id)
             const pickNumber = picks.indexOf(player.id)
             const pickedByCaptain = pickNumber >= 0 ? PICK_ORDER[pickNumber] : null
             const isJustPicked = justPicked === player.id
-            const canPick = isMyTurn && !isPicked && !picking
-            const isMe = player.id === selectedPlayerId
+            const canPick = isMyTurn && !isPicked && !isCaptainPlayer && !picking
 
             return (
               <button
@@ -236,6 +305,8 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all text-left ${
                   isJustPicked
                     ? "scale-95 opacity-70"
+                    : isCaptainPlayer
+                    ? `${CAPTAIN_COLORS[captainOwnerIndex].light} ${CAPTAIN_COLORS[captainOwnerIndex].border} opacity-70 cursor-default`
                     : isPicked
                     ? `${pickedByCaptain !== null ? CAPTAIN_COLORS[pickedByCaptain].light : "bg-gray-100"} ${
                         pickedByCaptain !== null ? CAPTAIN_COLORS[pickedByCaptain].border : "border-gray-200"
@@ -253,7 +324,7 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
                 {/* Player info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className={`font-semibold text-sm truncate ${isPicked ? "line-through opacity-60" : "text-gray-900"}`}>
+                    <span className={`font-semibold text-sm truncate ${isPicked || isCaptainPlayer ? "line-through opacity-60" : "text-gray-900"}`}>
                       {player.name} {player.lastName}
                     </span>
                     {isMe && (
@@ -270,7 +341,15 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
                   <span className="text-xs text-gray-400">{player.elo} ELO</span>
                 </div>
 
-                {/* Pick indicator */}
+                {/* Captain pre-assigned indicator */}
+                {isCaptainPlayer && (
+                  <div className={`shrink-0 flex items-center gap-1 ${CAPTAIN_COLORS[captainOwnerIndex].text}`}>
+                    <div className={`w-2.5 h-2.5 rounded-full ${CAPTAIN_COLORS[captainOwnerIndex].bg}`} />
+                    <span className="text-xs font-semibold">Captain</span>
+                  </div>
+                )}
+
+                {/* Draft pick indicator */}
                 {isPicked && pickedByCaptain !== null && (
                   <div className={`shrink-0 flex items-center gap-1 ${CAPTAIN_COLORS[pickedByCaptain].text}`}>
                     <div className={`w-2.5 h-2.5 rounded-full ${CAPTAIN_COLORS[pickedByCaptain].bg}`} />
@@ -302,9 +381,14 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
                   <ul className="space-y-0.5">
                     {team.map((pid, i) => {
                       const p = getPlayerById(pid)
+                      const isCap = captainPlayerIds[ci] === pid
                       return (
-                        <li key={pid} className="text-xs text-gray-700 truncate">
-                          <span className="text-gray-400 mr-1">#{i + 1}</span>
+                        <li key={pid} className="text-xs text-gray-700 truncate flex items-center gap-1">
+                          {isCap ? (
+                            <span className="text-gray-400 mr-1">★</span>
+                          ) : (
+                            <span className="text-gray-400 mr-1">#{i}</span>
+                          )}
                           {p ? `${p.name} ${p.lastName.charAt(0)}.` : "—"}
                         </li>
                       )
