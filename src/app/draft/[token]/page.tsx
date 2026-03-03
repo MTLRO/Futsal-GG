@@ -37,6 +37,11 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
   const [error, setError] = useState<string | null>(null)
   const [picking, setPicking] = useState(false)
   const [justPicked, setJustPicked] = useState<number | null>(null)
+  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null
+    const stored = localStorage.getItem(`draft-identity-${token}`)
+    return stored ? parseInt(stored, 10) : null
+  })
 
   const fetchState = useCallback(async () => {
     try {
@@ -108,6 +113,36 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
         <div className="flex items-center gap-3 text-gray-500">
           <Clock className="w-5 h-5 animate-spin" />
           <span>Loading draft...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (selectedPlayerId === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <div className="sticky top-0 z-20 bg-white border-b border-gray-200 px-4 py-3">
+          <h1 className="text-lg font-bold text-gray-900">Who are you?</h1>
+          <p className="text-xs text-gray-500">Select your name from the list</p>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+          {state.players.map((player) => (
+            <button
+              key={player.id}
+              onClick={() => {
+                localStorage.setItem(`draft-identity-${token}`, String(player.id))
+                setSelectedPlayerId(player.id)
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-gray-200 bg-white hover:border-blue-400 hover:bg-blue-50 active:scale-95 transition-all text-left shadow-sm"
+            >
+              <div className="flex-1">
+                <div className="font-semibold text-sm text-gray-900">
+                  {player.name} {player.lastName}
+                </div>
+                <div className="text-xs text-gray-400">{player.elo} ELO</div>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     )
@@ -191,6 +226,7 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
             const pickedByCaptain = pickNumber >= 0 ? PICK_ORDER[pickNumber] : null
             const isJustPicked = justPicked === player.id
             const canPick = isMyTurn && !isPicked && !picking
+            const isMe = player.id === selectedPlayerId
 
             return (
               <button
@@ -220,6 +256,11 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
                     <span className={`font-semibold text-sm truncate ${isPicked ? "line-through opacity-60" : "text-gray-900"}`}>
                       {player.name} {player.lastName}
                     </span>
+                    {isMe && (
+                      <span className="text-xs bg-gray-700 text-white px-1.5 py-0.5 rounded font-semibold shrink-0">
+                        You
+                      </span>
+                    )}
                     {canPick && (
                       <span className="text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded font-semibold shrink-0">
                         PICK
