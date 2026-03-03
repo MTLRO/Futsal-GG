@@ -11,6 +11,7 @@ interface PlayerGoals {
  * POST /api/games/add
  *
  * Add a game that was already played (retroactive)
+ * Triggers ridge regression recomputation for all games
  *
  * Request body:
  * {
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate all players exist and have goals data
+    // Validate all players exist
     const allPlayerIds = [
       ...homeTeamPlayers.map((p: PlayerGoals) => p.playerId),
       ...awayTeamPlayers.map((p: PlayerGoals) => p.playerId),
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
     }
 
     // Calculate fatigueX for each player based on time since last game
+    // (Fatigue data is tracked but not used in ridge regression)
     const gameStartTime = new Date(startDateTime);
     const fatigueXMap = new Map<number, number>();
 
@@ -152,233 +154,33 @@ export async function POST(request: Request) {
       },
     });
 
-    // Check if this game is the latest one (newest startDateTime)
-    // If yes, we only need to recompute this game's ELO, not all games
-    const latestGame = await prisma.game.findFirst({
-      orderBy: { startDateTime: "desc" },
-      select: { startDateTime: true },
-    });
+    // Trigger ridge regression recomputation for all games
+    // Ridge regression always requires full recomputation since it's a batch algorithm
+    try {
+      const computeUrl = new URL("/api/elo/compute", request.url);
+      const computeResponse = await fetch(computeUrl, {
+        method: "POST",
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-    const isLatestGame =
-      !latestGame || new Date(startDateTime).getTime() >= latestGame.startDateTime.getTime();
-
-    if (isLatestGame) {
-      // Game is at the end - only compute ELO for this game, not all games
-      try {
-        const { calculateGameElos } = await import("@/lib/elo-calculator");
-
-        // Get all players with their current ELOs
-        const allPlayers = await prisma.player.findMany();
-        const playerElos = new Map<number, number>();
-        const playerGkElos = new Map<number, number>();
-        for (const player of allPlayers) {
-          playerElos.set(player.id, player.elo);
-          playerGkElos.set(player.id, player.gkElo);
-        }
-
-        // Get player IDs for each team
-        const homePlayerIds = game.teamPlayers.filter((t) => t.side === "HOME").map((tp) => tp.playerId);
-        const awayPlayerIds = game.teamPlayers.filter((t) => t.side === "AWAY").map((tp) => tp.playerId);
-
-        // Helper function to get chemistry data for a player with teammates
-        const getChemistryData = async (playerId: number, teammateIds: number[]) => {
-          const chemistryData = [];
-
-          for (const teammateId of teammateIds) {
-            // Fetch PlayerLink for this player pair (considering only games before current game)
-            const [p1, p2] = [playerId, teammateId].sort((a, b) => a - b);
-            const playerLink = await prisma.playerLink.findUnique({
-              where: {
-                player1Id_player2Id: { player1Id: p1, player2Id: p2 },
-              },
-            });
-
-            chemistryData.push({
-              playerId: teammateId,
-              wins: playerLink?.wins || 0,
-              losses: playerLink?.losses || 0,
-              draws: playerLink?.draws || 0,
-            });
-          }
-
-          return chemistryData;
-        };
-
-        // Build player data with fatigueX and chemistry for ELO calculation
-        const homePlayersData = [];
-        const awayPlayersData = [];
-
-        for (const tp of game.teamPlayers.filter((t) => t.side === "HOME")) {
-          const teammateIds = homePlayerIds.filter((id) => id !== tp.playerId);
-          const teammatesChemistry = await getChemistryData(tp.playerId, teammateIds);
-
-          // Use position-specific ELO: gkElo if goalkeeper, else regular elo
-          const currentElo = tp.goalkeeper
-            ? (playerGkElos.get(tp.playerId) || 1500)
-            : (playerElos.get(tp.playerId) || 1500);
-
-          homePlayersData.push({
-            playerId: tp.playerId,
-            elo: currentElo,
-            goals: tp.goals,
-            gamesPlayed: 0, // Will be calculated from all games
-            fatigueX: tp.fatigueX,
-            teammatesChemistry,
-          });
-        }
-
-        for (const tp of game.teamPlayers.filter((t) => t.side === "AWAY")) {
-          const teammateIds = awayPlayerIds.filter((id) => id !== tp.playerId);
-          const teammatesChemistry = await getChemistryData(tp.playerId, teammateIds);
-
-          // Use position-specific ELO: gkElo if goalkeeper, else regular elo
-          const currentElo = tp.goalkeeper
-            ? (playerGkElos.get(tp.playerId) || 1500)
-            : (playerElos.get(tp.playerId) || 1500);
-
-          awayPlayersData.push({
-            playerId: tp.playerId,
-            elo: currentElo,
-            goals: tp.goals,
-            gamesPlayed: 0, // Will be calculated from all games
-            fatigueX: tp.fatigueX,
-            teammatesChemistry,
-          });
-        }
-
-        // Calculate ELO changes for just this game
-        const eloChanges = calculateGameElos(
-          homePlayersData,
-          awayPlayersData
-        );
-
-        // Calculate average ELOs at game time
-        const homeAvgElo = Math.round(
-          homePlayersData.reduce((sum, p) => sum + p.elo, 0) / homePlayersData.length
-        );
-        const awayAvgElo = Math.round(
-          awayPlayersData.reduce((sum, p) => sum + p.elo, 0) / awayPlayersData.length
-        );
-
-        // Update TeamPlayer deltaELOs and game with average ELOs
-        for (const [playerId, eloChange] of eloChanges.entries()) {
-          await prisma.teamPlayer.updateMany({
-            where: { gameId: game.id, playerId },
-            data: { deltaELO: eloChange },
-          });
-
-          // Determine if this player was a goalkeeper in this game
-          const teamPlayer = game.teamPlayers.find(tp => tp.playerId === playerId);
-          const wasGoalkeeper = teamPlayer?.goalkeeper || false;
-
-          // Update the appropriate ELO field
-          if (wasGoalkeeper) {
-            const newGkElo = (playerGkElos.get(playerId) || 1500) + eloChange;
-            await prisma.player.update({
-              where: { id: playerId },
-              data: { gkElo: newGkElo },
-            });
-          } else {
-            const newElo = (playerElos.get(playerId) || 1500) + eloChange;
-            await prisma.player.update({
-              where: { id: playerId },
-              data: { elo: newElo },
-            });
-          }
-        }
-
-        // Update game with average ELOs
-        await prisma.game.update({
-          where: { id: game.id },
-          data: {
-            homeTeamAverageElo: homeAvgElo,
-            awayTeamAverageElo: awayAvgElo,
-          },
-        });
-
-        // Update PlayerLinks for this game
-        const homeGoals = homePlayersData.reduce((sum, p) => sum + p.goals, 0);
-        const awayGoals = awayPlayersData.reduce((sum, p) => sum + p.goals, 0);
-
-        // Helper to generate player pairs
-        const generatePlayerPairs = (playerIds: number[]): Array<[number, number]> => {
-          const pairs: Array<[number, number]> = [];
-          for (let i = 0; i < playerIds.length; i++) {
-            for (let j = i + 1; j < playerIds.length; j++) {
-              const [p1, p2] = [playerIds[i], playerIds[j]].sort((a, b) => a - b);
-              pairs.push([p1, p2]);
-            }
-          }
-          return pairs;
-        };
-
-        // Update home team pairs
-        const homePairs = generatePlayerPairs(homePlayerIds);
-        for (const [player1Id, player2Id] of homePairs) {
-          const resultUpdate =
-            homeGoals > awayGoals
-              ? { wins: { increment: 1 } }
-              : homeGoals < awayGoals
-              ? { losses: { increment: 1 } }
-              : { draws: { increment: 1 } };
-
-          await prisma.playerLink.upsert({
-            where: {
-              player1Id_player2Id: { player1Id, player2Id },
-            },
-            create: {
-              player1Id,
-              player2Id,
-              wins: homeGoals > awayGoals ? 1 : 0,
-              losses: homeGoals < awayGoals ? 1 : 0,
-              draws: homeGoals === awayGoals ? 1 : 0,
-            },
-            update: resultUpdate,
-          });
-        }
-
-        // Update away team pairs
-        const awayPairs = generatePlayerPairs(awayPlayerIds);
-        for (const [player1Id, player2Id] of awayPairs) {
-          const resultUpdate =
-            awayGoals > homeGoals
-              ? { wins: { increment: 1 } }
-              : awayGoals < homeGoals
-              ? { losses: { increment: 1 } }
-              : { draws: { increment: 1 } };
-
-          await prisma.playerLink.upsert({
-            where: {
-              player1Id_player2Id: { player1Id, player2Id },
-            },
-            create: {
-              player1Id,
-              player2Id,
-              wins: awayGoals > homeGoals ? 1 : 0,
-              losses: awayGoals < homeGoals ? 1 : 0,
-              draws: awayGoals === homeGoals ? 1 : 0,
-            },
-            update: resultUpdate,
-          });
-        }
-      } catch (eloError) {
-        console.error("Error computing ELO for latest game:", eloError);
-        // Don't fail the game creation if ELO computation fails
+      if (!computeResponse.ok) {
+        console.error("Failed to recompute ridge regression ratings");
+        const errorData = await computeResponse.json();
+        console.error("Recomputation error:", errorData);
+      } else {
+        const result = await computeResponse.json();
+        console.log("Ridge regression recomputation successful:", result);
       }
-    } else {
-      // Game is inserted in the middle - recompute all games
-      try {
-        await fetch(new URL("/api/elo/compute", request.url), {
-          method: "POST",
-        });
-      } catch (eloError) {
-        console.error("Error recomputing all ELOs:", eloError);
-        // Don't fail the game creation if ELO computation fails
-      }
+    } catch (recomputeError) {
+      console.error("Error recomputing all ratings:", recomputeError);
+      // Don't fail the game creation if recomputation fails
+      // The admin can manually trigger recomputation later
     }
 
     return NextResponse.json(
-      { game, message: isLatestGame ? "Game added, ELO computed for this game only" : "Game added and all ELOs recomputed" },
+      { game, message: "Game added and all ratings recomputed using ridge regression" },
       { status: 201 }
     );
   } catch (error) {

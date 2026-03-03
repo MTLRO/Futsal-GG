@@ -25,7 +25,7 @@ model TeamPlayer {
   side       Side
   playerId   Int
   goals      Int     @default(0)
-  deltaELO   Int     @default(0)
+  deltaELO   Float   @default(0)
   fatigueX   Int     @default(0)  // Fatigue in minutes: increases by game duration, decreases by 1 per minute not playing
   goalkeeper Boolean @default(false)
   player     Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
@@ -100,4 +100,20 @@ model PlayerLink {
   @@unique([player1Id, player2Id])
   @@index([player1Id])
   @@index([player2Id])
+}
+
+model DraftSession {
+  id              String             @id @default(uuid())
+  playerIds       Int[]              // 15 players in ELO rank order (rank 1..15)
+  picks           Int[]              // Player IDs in the order they were picked (grows to length 15)
+  captain1Token   String             @unique
+  captain2Token   String             @unique
+  captain3Token   String             @unique
+  status          DraftSessionStatus @default(ACTIVE)
+  createdAt       DateTime           @default(now())
+}
+
+enum DraftSessionStatus {
+  ACTIVE
+  COMPLETED
 }

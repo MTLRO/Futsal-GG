@@ -1,5 +1,6 @@
 "use client"
 
+import { memo } from "react"
 import { useDroppable } from "@dnd-kit/core"
 import { Player } from "@/lib/team-utils"
 import { PlayerCard, DraggablePlayerCard } from "./player-card"
@@ -10,15 +11,17 @@ interface DroppableSlotProps {
   player: Player | undefined
   isGK?: boolean
   isHighlighted?: boolean
+  isPendingTarget?: boolean
   onPress?: () => void
 }
 
-export function DroppableSlot({
+export const DroppableSlot = memo(function DroppableSlot({
   slotId,
   playerId,
   player,
   isGK = false,
   isHighlighted = false,
+  isPendingTarget = false,
   onPress,
 }: DroppableSlotProps) {
   const { setNodeRef, isOver } = useDroppable({
@@ -37,6 +40,7 @@ export function DroppableSlot({
           player={player}
           isGK={isGK}
           isHighlighted={isHighlighted}
+          isPendingTarget={isPendingTarget}
           onPress={onPress}
           dragId={slotId}
         />
@@ -45,10 +49,12 @@ export function DroppableSlot({
           playerId={null}
           player={undefined}
           isGK={isGK}
-          isHighlighted={isHighlighted}
+          isPendingTarget={isPendingTarget}
           onPress={onPress}
         />
       )}
     </div>
   )
-}
+})
+
+DroppableSlot.displayName = "DroppableSlot"

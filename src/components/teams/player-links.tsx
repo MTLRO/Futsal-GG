@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { PlayerLink, getSynergy, synergyToColor } from "@/lib/team-utils"
 
 interface PlayerLinksProps {
@@ -8,25 +9,27 @@ interface PlayerLinksProps {
   links: PlayerLink[]
 }
 
-export function PlayerLinks({ team, highlightedPlayer, links }: PlayerLinksProps) {
-  // Position coordinates for the formation (relative to container)
-  const positions = [
-    { x: 50, y: 82 },   // GK - bottom center
-    { x: 25, y: 52 },   // DL - defender left
-    { x: 75, y: 52 },   // DR - defender right
-    { x: 25, y: 22 },   // FL - forward left
-    { x: 75, y: 22 },   // FR - forward right
-  ]
+// Position coordinates for the formation (relative to container)
+const POSITIONS = [
+  { x: 50, y: 82 }, // GK
+  { x: 25, y: 52 }, // DL
+  { x: 75, y: 52 }, // DR
+  { x: 25, y: 22 }, // FL
+  { x: 75, y: 22 }, // FR
+]
 
-  // Generate all pairs
-  const pairs: Array<{ from: number; to: number; fromIdx: number; toIdx: number }> = []
-  for (let i = 0; i < team.length; i++) {
-    for (let j = i + 1; j < team.length; j++) {
-      if (team[i] && team[j]) {
-        pairs.push({ from: team[i], to: team[j], fromIdx: i, toIdx: j })
+export function PlayerLinks({ team, highlightedPlayer, links }: PlayerLinksProps) {
+  const pairs = useMemo(() => {
+    const result: Array<{ from: number; to: number; fromIdx: number; toIdx: number }> = []
+    for (let i = 0; i < team.length; i++) {
+      for (let j = i + 1; j < team.length; j++) {
+        if (team[i] && team[j]) {
+          result.push({ from: team[i], to: team[j], fromIdx: i, toIdx: j })
+        }
       }
     }
-  }
+    return result
+  }, [team])
 
   return (
     <svg
@@ -40,17 +43,16 @@ export function PlayerLinks({ team, highlightedPlayer, links }: PlayerLinksProps
         const isHighlighted = highlightedPlayer === from || highlightedPlayer === to
         const opacity = highlightedPlayer === null ? 0.15 : isHighlighted ? 0.9 : 0.05
         const strokeWidth = isHighlighted ? 1.5 : 0.8
-
-        const midX = (positions[fromIdx].x + positions[toIdx].x) / 2
-        const midY = (positions[fromIdx].y + positions[toIdx].y) / 2
+        const midX = (POSITIONS[fromIdx].x + POSITIONS[toIdx].x) / 2
+        const midY = (POSITIONS[fromIdx].y + POSITIONS[toIdx].y) / 2
 
         return (
           <g key={`${from}-${to}`}>
             <line
-              x1={`${positions[fromIdx].x}%`}
-              y1={`${positions[fromIdx].y}%`}
-              x2={`${positions[toIdx].x}%`}
-              y2={`${positions[toIdx].y}%`}
+              x1={`${POSITIONS[fromIdx].x}%`}
+              y1={`${POSITIONS[fromIdx].y}%`}
+              x2={`${POSITIONS[toIdx].x}%`}
+              y2={`${POSITIONS[toIdx].y}%`}
               stroke={synergyToColor(synergy, opacity)}
               strokeWidth={strokeWidth}
               strokeLinecap="round"

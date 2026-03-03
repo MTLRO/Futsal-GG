@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { calculateGameElos, ChemistryData } from "@/lib/elo-calculator";
+import { calculateRidgeRatings, type GameData } from "@/lib/ridge-calculator";
 
 /**
  * Helper function to generate all unique pairs from an array of player IDs
@@ -18,50 +18,27 @@ function generatePlayerPairs(playerIds: number[]): Array<[number, number]> {
 }
 
 /**
- * Helper function to generate a unique key for a player pair
- * Always orders IDs consistently (smaller ID first)
- */
-function getPlayerPairKey(player1Id: number, player2Id: number): string {
-  const [p1, p2] = [player1Id, player2Id].sort((a, b) => a - b);
-  return `${p1}-${p2}`;
-}
-
-/**
- * Helper function to get chemistry data for a player with their teammates
- * Uses the in-memory player link tracking to get historical chemistry
- */
-function getChemistryDataForPlayer(
-  playerId: number,
-  teammateIds: number[],
-  playerLinks: Map<string, { wins: number; losses: number; draws: number }>
-): ChemistryData[] {
-  return teammateIds.map((teammateId) => {
-    const key = getPlayerPairKey(playerId, teammateId);
-    const linkData = playerLinks.get(key) || { wins: 0, losses: 0, draws: 0 };
-    return {
-      playerId: teammateId,
-      wins: linkData.wins,
-      losses: linkData.losses,
-      draws: linkData.draws,
-    };
-  });
-}
-
-/**
  * POST /api/elo/compute
  *
- * Recomputes ELO for all games chronologically.
- * This recalculates all player ELOs from scratch based on game history.
+ * Recomputes player ratings using ridge regression on all game history.
+ * This recalculates all player ratings from scratch using batch ridge regression.
  *
  * Process:
- * 1. Reset all players to 1500 ELO
- * 2. Sort games by startDateTime (oldest first)
- * 3. For each game, recalculate ELO deltas
- * 4. Update player ELOs and TeamPlayer deltaELOs
- * 5. Update PlayerLinks for player pair statistics
+ * 1. Convert all games to GameData format for ridge regression
+ * 2. For each game chronologically:
+ *    a. Compute ridge coefficients using all games BEFORE this game
+ *    b. Compute ridge coefficients using all games UP TO AND INCLUDING this game
+ *    c. Delta = difference in coefficients (rating change from this game)
+ * 3. Update player ratings with final ridge coefficients
+ * 4. Update PlayerLinks for player pair chemistry statistics
+ *
+ * Note: Fatigue and chemistry are still tracked in the database but NOT used
+ * in ridge regression calculations (as per user requirements).
  */
 export async function POST() {
   try {
+    console.log("Starting ridge regression recomputation...");
+
     // Get all games sorted by startDateTime
     const games = await prisma.game.findMany({
       orderBy: { startDateTime: "asc" },
@@ -78,222 +55,115 @@ export async function POST() {
       return NextResponse.json({ message: "No games to recompute" });
     }
 
-    // Reset all players to 1500 ELO (both regular and GK) and clear all fatigue
-    await prisma.player.updateMany({
-      data: { elo: 1500, gkElo: 1500 },
+    console.log(`Processing ${games.length} games...`);
+
+    // Convert games to GameData format for ridge regression
+    const gameDataList: GameData[] = games.map(game => {
+      const homePlayers = game.teamPlayers.filter(tp => tp.side === "HOME");
+      const awayPlayers = game.teamPlayers.filter(tp => tp.side === "AWAY");
+
+      return {
+        id: game.id,
+        homePlayerIds: homePlayers.map(tp => tp.playerId),
+        awayPlayerIds: awayPlayers.map(tp => tp.playerId),
+        homeGoals: homePlayers.reduce((sum, tp) => sum + tp.goals, 0),
+        awayGoals: awayPlayers.reduce((sum, tp) => sum + tp.goals, 0),
+        homeGoalkeeperIds: homePlayers.filter(tp => tp.goalkeeper).map(tp => tp.playerId),
+        awayGoalkeeperIds: awayPlayers.filter(tp => tp.goalkeeper).map(tp => tp.playerId),
+      };
     });
 
-    // Reset all TeamPlayer fatigue to 0 for clean recomputation
-    await prisma.teamPlayer.updateMany({
-      data: { fatigueX: 0 },
+    // Reset all players to 1500 ratings initially
+    await prisma.player.updateMany({
+      data: { elo: 1500, gkElo: 1500 },
     });
 
     // Clear all PlayerLinks for clean recomputation
     await prisma.playerLink.deleteMany({});
 
-    // Track current ELO for each player during recomputation
-    const playerElos = new Map<number, number>();
-    const playerGkElos = new Map<number, number>();
-    // Track games played for each player
-    const playerGamesPlayed = new Map<number, number>();
-    // Track fatigueX for each player
-    const playerFatigueX = new Map<number, number>();
-    // Track player link chemistry data (wins/losses/draws for each player pair)
-    const playerLinks = new Map<string, { wins: number; losses: number; draws: number }>();
+    console.log("Computing ridge regression deltas for each game...");
 
-    // Initialize all players with 1500 ELO (both regular and GK), 0 games, and 0 fatigue
-    const allPlayers = await prisma.player.findMany();
-    for (const player of allPlayers) {
-      playerElos.set(player.id, 1500);
-      playerGkElos.set(player.id, 1500);
-      playerGamesPlayed.set(player.id, 0);
-      playerFatigueX.set(player.id, 0);
-    }
+    // Process each game to compute deltas
+    for (let i = 0; i < games.length; i++) {
+      const currentGame = games[i];
 
-    // Process each game in chronological order
-    for (const game of games) {
-      // Group players by side
-      const homePlayers = game.teamPlayers.filter((tp) => tp.side === "HOME");
-      const awayPlayers = game.teamPlayers.filter((tp) => tp.side === "AWAY");
+      // Compute ratings using games BEFORE this game
+      const gamesBeforeThis = gameDataList.slice(0, i);
+      const ratingsBefore = gamesBeforeThis.length > 0
+        ? calculateRidgeRatings(gamesBeforeThis)
+        : new Map(); // Empty = everyone at 1500
 
-      // Calculate fatigueX for each player based on game duration and time since last game
-      const playerNewFatigueX = new Map<number, number>();
+      // Compute ratings using games UP TO AND INCLUDING this game
+      const gamesIncludingThis = gameDataList.slice(0, i + 1);
+      const ratingsAfter = calculateRidgeRatings(gamesIncludingThis);
 
-      for (const player of [...homePlayers, ...awayPlayers]) {
-        // Find this player's most recent previous game
-        let previousGameTeamPlayer = null;
-        let previousGame = null;
+      // Calculate deltas and team averages for this game
+      const homePlayers = currentGame.teamPlayers.filter(tp => tp.side === "HOME");
+      const awayPlayers = currentGame.teamPlayers.filter(tp => tp.side === "AWAY");
 
-        for (let i = games.length - 1; i >= 0; i--) {
-          const g = games[i];
-          if (g.startDateTime >= game.startDateTime) continue; // Skip current game and later games
+      let homeEloSum = 0;
+      let awayEloSum = 0;
 
-          const tp = g.teamPlayers.find((tp) => tp.playerId === player.playerId);
-          if (tp) {
-            previousGameTeamPlayer = tp;
-            previousGame = g;
-            break;
-          }
-        }
+      // Update each player's delta
+      for (const tp of [...homePlayers, ...awayPlayers]) {
+        const ratingData = ratingsAfter.get(tp.playerId);
 
-        if (previousGame && previousGameTeamPlayer) {
-          const previousGameEndTime =
-            new Date(previousGame.startDateTime).getTime() +
-            (previousGame.timePlayed || 0) * 1000;
+        // Determine which rating to use based on goalkeeper status
+        const isGoalkeeper = tp.goalkeeper;
+        const afterRating = ratingData
+          ? (isGoalkeeper ? ratingData.gkElo : ratingData.elo)
+          : 1500;
 
-          const currentGameStartTime = new Date(game.startDateTime).getTime();
+        const beforeRatingData = ratingsBefore.get(tp.playerId);
+        const beforeRating = beforeRatingData
+          ? (isGoalkeeper ? beforeRatingData.gkElo : beforeRatingData.elo)
+          : 1500;
 
-          // Calculate minutes since last game ended
-          const minutesSincePreviousGame = Math.floor(
-            (currentGameStartTime - previousGameEndTime) / (60 * 1000)
-          );
+        const delta = afterRating - beforeRating;
 
-          // Get the previous game's fatigue and duration
-          const previousGameDurationMinutes = Math.round((previousGame.timePlayed || 0) / 60);
-          const previousFatigueBefore = previousGameTeamPlayer.fatigueX || 0;
-          const previousFatigueAfter = previousFatigueBefore + previousGameDurationMinutes;
-
-          // Decay fatigue by 1 per minute since last game, minimum 0
-          const newFatigueX = Math.max(
-            0,
-            previousFatigueAfter - minutesSincePreviousGame
-          );
-
-          playerNewFatigueX.set(player.playerId, newFatigueX);
-        } else {
-          // No previous games - first game, player is fresh
-          playerNewFatigueX.set(player.playerId, 0);
-        }
-      }
-
-      // Prepare player data with current ELOs, games played, fatigueX, and chemistry
-      const homePlayerIds = homePlayers.map((tp) => tp.playerId);
-      const awayPlayerIds = awayPlayers.map((tp) => tp.playerId);
-
-      const homeTeamData = homePlayers.map((tp) => {
-        // Get teammate IDs (all home players except this one)
-        const teammateIds = homePlayerIds.filter((id) => id !== tp.playerId);
-        // Get chemistry data with teammates
-        const teammatesChemistry = getChemistryDataForPlayer(tp.playerId, teammateIds, playerLinks);
-
-        // Use position-specific ELO: gkElo if goalkeeper, else regular elo
-        const currentElo = tp.goalkeeper
-          ? (playerGkElos.get(tp.playerId) || 1500)
-          : (playerElos.get(tp.playerId) || 1500);
-
-        return {
-          playerId: tp.playerId,
-          elo: currentElo,
-          goals: tp.goals,
-          gamesPlayed: playerGamesPlayed.get(tp.playerId) || 0,
-          fatigueX: playerNewFatigueX.get(tp.playerId) || 0,
-          teammatesChemistry,
-        };
-      });
-
-      const awayTeamData = awayPlayers.map((tp) => {
-        // Get teammate IDs (all away players except this one)
-        const teammateIds = awayPlayerIds.filter((id) => id !== tp.playerId);
-        // Get chemistry data with teammates
-        const teammatesChemistry = getChemistryDataForPlayer(tp.playerId, teammateIds, playerLinks);
-
-        // Use position-specific ELO: gkElo if goalkeeper, else regular elo
-        const currentElo = tp.goalkeeper
-          ? (playerGkElos.get(tp.playerId) || 1500)
-          : (playerElos.get(tp.playerId) || 1500);
-
-        return {
-          playerId: tp.playerId,
-          elo: currentElo,
-          goals: tp.goals,
-          gamesPlayed: playerGamesPlayed.get(tp.playerId) || 0,
-          fatigueX: playerNewFatigueX.get(tp.playerId) || 0,
-          teammatesChemistry,
-        };
-      });
-
-      // Calculate ELO changes for this game
-      const eloChanges = calculateGameElos(homeTeamData, awayTeamData);
-
-      // Calculate average ELO for each team at time of game
-      const homeAvgElo = Math.round(
-        homeTeamData.reduce((sum, p) => sum + p.elo, 0) / homeTeamData.length
-      );
-      const awayAvgElo = Math.round(
-        awayTeamData.reduce((sum, p) => sum + p.elo, 0) / awayTeamData.length
-      );
-
-      // Update player ELOs and TeamPlayer deltaELOs and fatigueX
-      for (const [playerId, eloChange] of eloChanges.entries()) {
-        // Determine if this player was a goalkeeper in this game
-        const teamPlayer = [...homePlayers, ...awayPlayers].find(tp => tp.playerId === playerId);
-        const wasGoalkeeper = teamPlayer?.goalkeeper || false;
-
-        // Update the appropriate ELO rating
-        if (wasGoalkeeper) {
-          const newGkElo = (playerGkElos.get(playerId) || 1500) + eloChange;
-          playerGkElos.set(playerId, newGkElo);
-        } else {
-          const newElo = (playerElos.get(playerId) || 1500) + eloChange;
-          playerElos.set(playerId, newElo);
-        }
-
-        // Increment games played
-        const gamesPlayed = (playerGamesPlayed.get(playerId) || 0) + 1;
-        playerGamesPlayed.set(playerId, gamesPlayed);
-
-        // Update accumulated fatigue for next game calculation
-        // This is the fatigue AFTER this game (before decay for the next game)
-        const gameDurationMinutes = Math.round((game.timePlayed || 0) / 60);
-        const fatigueAfterThisGame = (playerNewFatigueX.get(playerId) || 0) + gameDurationMinutes;
-        playerFatigueX.set(playerId, fatigueAfterThisGame);
-
-        // Update the TeamPlayer record's deltaELO and fatigueX
-        const fatigueForThisGame = playerNewFatigueX.get(playerId) || 0;
+        // Update TeamPlayer with delta
         await prisma.teamPlayer.updateMany({
           where: {
-            gameId: game.id,
-            playerId,
+            gameId: currentGame.id,
+            playerId: tp.playerId,
           },
           data: {
-            deltaELO: eloChange,
-            fatigueX: fatigueForThisGame,
+            deltaELO: delta,
           },
         });
+
+        // Accumulate for team averages (use the rating BEFORE this game)
+        if (tp.side === "HOME") {
+          homeEloSum += beforeRating;
+        } else {
+          awayEloSum += beforeRating;
+        }
       }
 
-      // Update game with average ELOs at time of game
+      // Calculate team averages
+      const homeAvgElo = homePlayers.length > 0
+        ? Math.round(homeEloSum / homePlayers.length)
+        : 1500;
+      const awayAvgElo = awayPlayers.length > 0
+        ? Math.round(awayEloSum / awayPlayers.length)
+        : 1500;
+
+      // Update game with team averages
       await prisma.game.update({
-        where: { id: game.id },
+        where: { id: currentGame.id },
         data: {
           homeTeamAverageElo: homeAvgElo,
           awayTeamAverageElo: awayAvgElo,
         },
       });
 
-      // Update PlayerLinks for player pairs on each team
-      // Determine game result based on goals scored
+      // Update PlayerLinks for chemistry tracking
       const homeGoals = homePlayers.reduce((sum, tp) => sum + tp.goals, 0);
       const awayGoals = awayPlayers.reduce((sum, tp) => sum + tp.goals, 0);
 
-      // Generate all pairs for home team and update their stats
-      const homePairs = generatePlayerPairs(homePlayerIds);
-
+      // Process home team pairs
+      const homePairs = generatePlayerPairs(homePlayers.map(tp => tp.playerId));
       for (const [player1Id, player2Id] of homePairs) {
-        const pairKey = getPlayerPairKey(player1Id, player2Id);
-        const existingLink = playerLinks.get(pairKey) || { wins: 0, losses: 0, draws: 0 };
-
-        // Update in-memory tracking
-        if (homeGoals > awayGoals) {
-          existingLink.wins++;
-        } else if (homeGoals < awayGoals) {
-          existingLink.losses++;
-        } else {
-          existingLink.draws++;
-        }
-        playerLinks.set(pairKey, existingLink);
-
-        // Determine the result for the home team
         const resultUpdate =
           homeGoals > awayGoals
             ? { wins: { increment: 1 } }
@@ -316,24 +186,9 @@ export async function POST() {
         });
       }
 
-      // Generate all pairs for away team and update their stats
-      const awayPairs = generatePlayerPairs(awayPlayerIds);
-
+      // Process away team pairs
+      const awayPairs = generatePlayerPairs(awayPlayers.map(tp => tp.playerId));
       for (const [player1Id, player2Id] of awayPairs) {
-        const pairKey = getPlayerPairKey(player1Id, player2Id);
-        const existingLink = playerLinks.get(pairKey) || { wins: 0, losses: 0, draws: 0 };
-
-        // Update in-memory tracking
-        if (awayGoals > homeGoals) {
-          existingLink.wins++;
-        } else if (awayGoals < homeGoals) {
-          existingLink.losses++;
-        } else {
-          existingLink.draws++;
-        }
-        playerLinks.set(pairKey, existingLink);
-
-        // Determine the result for the away team
         const resultUpdate =
           awayGoals > homeGoals
             ? { wins: { increment: 1 } }
@@ -355,15 +210,25 @@ export async function POST() {
           update: resultUpdate,
         });
       }
+
+      // Log progress every 10 games
+      if ((i + 1) % 10 === 0) {
+        console.log(`Processed ${i + 1}/${games.length} games...`);
+      }
     }
 
-    // Update all players with their final ELOs (both regular and GK)
-    for (const [playerId, elo] of playerElos.entries()) {
+    console.log("Computing final ratings for all players...");
+
+    // Compute final ratings using ALL games
+    const finalRatings = calculateRidgeRatings(gameDataList);
+
+    // Update all players with their final ratings
+    for (const [playerId, rating] of finalRatings.entries()) {
       await prisma.player.update({
         where: { id: playerId },
         data: {
-          elo,
-          gkElo: playerGkElos.get(playerId) || 1500,
+          elo: rating.elo,
+          gkElo: rating.gkElo,
         },
       });
     }
@@ -371,15 +236,21 @@ export async function POST() {
     // Count total player links created
     const totalLinks = await prisma.playerLink.count();
 
+    console.log("Ridge regression recomputation complete!");
+
     return NextResponse.json({
       success: true,
-      message: `Recomputed ELO for ${games.length} games and tracked ${totalLinks} player pair links`,
+      message: `Recomputed ratings using ridge regression for ${games.length} games and tracked ${totalLinks} player pair links`,
       gamesProcessed: games.length,
       playerLinksTracked: totalLinks,
+      playersUpdated: finalRatings.size,
     });
   } catch (error) {
-    console.error("ELO Compute Error:", error);
+    console.error("Ridge Regression Compute Error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message, details: error instanceof Error ? error.stack : "" }, { status: 500 });
+    return NextResponse.json(
+      { error: message, details: error instanceof Error ? error.stack : "" },
+      { status: 500 }
+    );
   }
 }

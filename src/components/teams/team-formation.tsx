@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { TrendingUp, TrendingDown } from "lucide-react"
 import {
   Player,
@@ -13,13 +14,17 @@ import {
 import { DroppableSlot } from "./droppable-slot"
 import { PlayerLinks } from "./player-links"
 
+const POSITIONS = ["GK", "DL", "DR", "FL", "FR"] as const
+
 interface TeamFormationProps {
   teamLetter: TeamLetter
   team: number[]
   allPlayers: Player[]
   links: PlayerLink[]
   highlightedPlayer: number | null
-  setHighlightedPlayer: (id: number | null) => void
+  hasPendingPlayer: boolean
+  onSlotTap: (slotId: string, currentPlayerId: number | null) => void
+  onPlayerTap: (playerId: number) => void
 }
 
 export function TeamFormation({
@@ -28,34 +33,60 @@ export function TeamFormation({
   allPlayers,
   links,
   highlightedPlayer,
-  setHighlightedPlayer,
+  hasPendingPlayer,
+  onSlotTap,
+  onPlayerTap,
 }: TeamFormationProps) {
-  const teamName = getHighestEloPlayerName(team, allPlayers) || teamLetter
+  // Pad to 5 slots
+  const teamSlots = useMemo(() => {
+    const slots = [...team]
+    while (slots.length < 5) slots.push(0)
+    return slots
+  }, [team])
 
-  // Ensure team has 5 slots
-  const teamSlots = [...team]
-  while (teamSlots.length < 5) {
-    teamSlots.push(0)
-  }
+  const teamName = useMemo(
+    () => getHighestEloPlayerName(team, allPlayers) || teamLetter,
+    [team, allPlayers, teamLetter]
+  )
 
-  // Calculate chemistry-adjusted ELO only if team has 5 valid players
-  const validPlayerIds = teamSlots.filter((id) => id > 0)
+  const validPlayerIds = useMemo(
+    () => teamSlots.filter((id) => id > 0),
+    [teamSlots]
+  )
+
   const hasFullTeam = validPlayerIds.length === 5
-  const { avgElo, staticAvgElo, chemistryDelta } = hasFullTeam
-    ? calculateChemistryAdjustedElo(validPlayerIds, allPlayers, links)
-    : { avgElo: 0, staticAvgElo: calculateAverageElo(validPlayerIds, allPlayers), chemistryDelta: 0 }
+
+  const { avgElo, staticAvgElo, chemistryDelta } = useMemo(
+    () =>
+      hasFullTeam
+        ? calculateChemistryAdjustedElo(validPlayerIds, allPlayers, links)
+        : { avgElo: 0, staticAvgElo: calculateAverageElo(validPlayerIds, allPlayers), chemistryDelta: 0 },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hasFullTeam, validPlayerIds.join(","), allPlayers, links]
+  )
+
+  // Slot layout: [FL, FR], [DL, DR], [GK]
+  const rows = [
+    [{ idx: 3, pos: "FL" }, { idx: 4, pos: "FR" }],
+    [{ idx: 1, pos: "DL" }, { idx: 2, pos: "DR" }],
+    [{ idx: 0, pos: "GK" }],
+  ]
 
   return (
     <div className="w-full h-full flex flex-col">
-      {/* Team Header */}
-      <div className="text-center py-2 sm:py-3">
-        <h2 className="text-black text-lg sm:text-xl font-bold">Team {teamName}</h2>
+      {/* Team header */}
+      <div className="text-center py-2">
+        <h2 className="text-gray-900 text-base font-bold">Team {teamName}</h2>
         <div className="flex items-center justify-center gap-2">
-          <p className="text-gray-500 text-xs sm:text-sm">
-            Avg ELO: {hasFullTeam ? avgElo : staticAvgElo || "—"}
+          <p className="text-gray-400 text-xs">
+            {hasFullTeam ? avgElo : staticAvgElo || "—"} ELO
           </p>
           {hasFullTeam && chemistryDelta !== 0 && (
-            <div className={`flex items-center gap-0.5 text-xs font-medium ${chemistryDelta > 0 ? "text-green-600" : "text-red-600"}`}>
+            <div
+              className={`flex items-center gap-0.5 text-xs font-medium ${
+                chemistryDelta > 0 ? "text-green-600" : "text-red-500"
+              }`}
+            >
               {chemistryDelta > 0 ? (
                 <TrendingUp className="w-3 h-3" />
               ) : (
@@ -67,11 +98,11 @@ export function TeamFormation({
         </div>
       </div>
 
-      {/* Formation Field */}
+      {/* Field */}
       <div className="flex-1 flex items-center justify-center mx-1 mb-2">
-        <div className="relative w-full max-w-[400px] aspect-[9/10]">
+        <div className="relative w-full max-w-[360px] aspect-[9/10]">
           {/* Field background */}
-          <div className="absolute inset-0 rounded-xl bg-white border-2 border-black">
+          <div className="absolute inset-0 rounded-xl bg-white border-2 border-gray-900">
             <svg
               className="absolute inset-0 w-full h-full"
               viewBox="0 0 100 100"
@@ -84,62 +115,46 @@ export function TeamFormation({
             </svg>
           </div>
 
-          {/* Player Links SVG */}
+          {/* Chemistry links */}
           <PlayerLinks
             team={teamSlots}
-            highlightedPlayer={highlightedPlayer}
+            highlightedPlayer={hasPendingPlayer ? null : highlightedPlayer}
             links={links}
           />
 
-          {/* Formation positions - 2-2 + GK */}
-          <div className="absolute inset-0 flex flex-col justify-between py-4 sm:py-6">
-            {/* Forwards Row */}
-            <div className="flex justify-around px-4 sm:px-8">
-              <DroppableSlot
-                slotId={`${teamLetter}-FL`}
-                playerId={teamSlots[3] || null}
-                player={getPlayerById(teamSlots[3], allPlayers)}
-                isHighlighted={highlightedPlayer === teamSlots[3]}
-                onPress={() => setHighlightedPlayer(highlightedPlayer === teamSlots[3] ? null : teamSlots[3])}
-              />
-              <DroppableSlot
-                slotId={`${teamLetter}-FR`}
-                playerId={teamSlots[4] || null}
-                player={getPlayerById(teamSlots[4], allPlayers)}
-                isHighlighted={highlightedPlayer === teamSlots[4]}
-                onPress={() => setHighlightedPlayer(highlightedPlayer === teamSlots[4] ? null : teamSlots[4])}
-              />
-            </div>
-
-            {/* Defenders Row */}
-            <div className="flex justify-around px-4 sm:px-8">
-              <DroppableSlot
-                slotId={`${teamLetter}-DL`}
-                playerId={teamSlots[1] || null}
-                player={getPlayerById(teamSlots[1], allPlayers)}
-                isHighlighted={highlightedPlayer === teamSlots[1]}
-                onPress={() => setHighlightedPlayer(highlightedPlayer === teamSlots[1] ? null : teamSlots[1])}
-              />
-              <DroppableSlot
-                slotId={`${teamLetter}-DR`}
-                playerId={teamSlots[2] || null}
-                player={getPlayerById(teamSlots[2], allPlayers)}
-                isHighlighted={highlightedPlayer === teamSlots[2]}
-                onPress={() => setHighlightedPlayer(highlightedPlayer === teamSlots[2] ? null : teamSlots[2])}
-              />
-            </div>
-
-            {/* Goalkeeper Row */}
-            <div className="flex justify-center">
-              <DroppableSlot
-                slotId={`${teamLetter}-GK`}
-                playerId={teamSlots[0] || null}
-                player={getPlayerById(teamSlots[0], allPlayers)}
-                isGK
-                isHighlighted={highlightedPlayer === teamSlots[0]}
-                onPress={() => setHighlightedPlayer(highlightedPlayer === teamSlots[0] ? null : teamSlots[0])}
-              />
-            </div>
+          {/* Slots */}
+          <div className="absolute inset-0 flex flex-col justify-between py-4 sm:py-5">
+            {rows.map((row, rowIdx) => (
+              <div
+                key={rowIdx}
+                className={`flex ${row.length === 1 ? "justify-center" : "justify-around px-4 sm:px-6"}`}
+              >
+                {row.map(({ idx, pos }) => {
+                  const slotId = `${teamLetter}-${pos}`
+                  const playerId = teamSlots[idx] || null
+                  const player = getPlayerById(teamSlots[idx], allPlayers)
+                  const isGK = pos === "GK"
+                  return (
+                    <DroppableSlot
+                      key={slotId}
+                      slotId={slotId}
+                      playerId={playerId}
+                      player={player}
+                      isGK={isGK}
+                      isHighlighted={!hasPendingPlayer && highlightedPlayer === teamSlots[idx]}
+                      isPendingTarget={hasPendingPlayer}
+                      onPress={() => {
+                        if (hasPendingPlayer) {
+                          onSlotTap(slotId, playerId)
+                        } else if (playerId) {
+                          onPlayerTap(playerId)
+                        }
+                      }}
+                    />
+                  )
+                })}
+              </div>
+            ))}
           </div>
         </div>
       </div>

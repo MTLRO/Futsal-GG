@@ -1,4 +1,4 @@
-export { PlayerCard, DraggablePlayerCard } from "./player-card"
+export { PlayerCard, DraggablePlayerCard, BenchChip, DraggableBenchChip } from "./player-card"
 export { DroppableSlot } from "./droppable-slot"
 export { PlayerLinks } from "./player-links"
 export { TeamFormation } from "./team-formation"

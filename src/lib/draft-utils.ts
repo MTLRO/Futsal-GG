@@ -1,0 +1,3 @@
+// Snake draft pick order for 3 captains, 15 picks (0-indexed captain)
+// Pattern: 1,2,3,3,2,1 repeating — captains 0,1,2,2,1,0,...
+export const PICK_ORDER = [0, 1, 2, 2, 1, 0, 0, 1, 2, 2, 1, 0, 0, 1, 2]
