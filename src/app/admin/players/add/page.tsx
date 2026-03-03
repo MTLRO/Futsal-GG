@@ -2,12 +2,14 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ArrowLeft } from "lucide-react"
 
 export default function AddPlayerPage() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [formData, setFormData] = useState({
@@ -40,7 +42,8 @@ export default function AddPlayerPage() {
         throw new Error(data.error || "Failed to add player")
       }
 
-      // Success - go back
+      // Success - invalidate players cache and go back
+      await queryClient.invalidateQueries({ queryKey: ["players"] })
       router.back()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")

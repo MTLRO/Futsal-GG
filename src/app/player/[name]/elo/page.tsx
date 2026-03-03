@@ -226,7 +226,7 @@ export default function PlayerEloProgressionPage() {
   const selectedPoint = selectedIndex !== null ? chartData[selectedIndex] : null
 
   // Calculate current ELO and weekly change
-  const currentElo = chartData.length > 0 ? chartData[chartData.length - 1].y : 1500
+  const currentElo = chartData.length > 0 ? Math.round(chartData[chartData.length - 1].y) : 1500
   const mondayOfWeek = getMondayOfWeekEST()
 
   // Find ELO at start of week (last game before Monday, or first game if all games are this week)
@@ -327,6 +327,39 @@ export default function PlayerEloProgressionPage() {
     return { isWin, isLoss, isDraw: !isWin && !isLoss }
   }
 
+  const getEloPredictionInfo = (point: ChartDataPoint) => {
+    // Calculate expected score using ELO formula
+    const eloDiff = point.opponentsAvgElo - point.teamAvgElo
+    const expectedScore = 1 / (1 + Math.pow(10, eloDiff / 400))
+
+    // Determine what the system expected
+    let expectedResult: 'win' | 'loss' | 'tie'
+    if (expectedScore >= 0.55) {
+      expectedResult = 'win'
+    } else if (expectedScore <= 0.45) {
+      expectedResult = 'loss'
+    } else {
+      expectedResult = 'tie'
+    }
+
+    // Get actual result
+    const { isWin, isLoss } = getResultInfo(point)
+    const actualResult = isWin ? 'win' : isLoss ? 'loss' : 'tie'
+
+    // Determine if prediction was correct
+    const correct = expectedResult === actualResult
+    const isUpset = (expectedResult === 'win' && actualResult === 'loss') ||
+                    (expectedResult === 'loss' && actualResult === 'win')
+
+    return {
+      expectedResult,
+      actualResult,
+      correct,
+      isUpset,
+      expectedScore: (expectedScore * 100).toFixed(0) + '%'
+    }
+  }
+
   // Calculate ELO range for chart
   const eloValues = chartData.map(d => d.y)
   const minElo = Math.min(...eloValues)
@@ -339,6 +372,7 @@ export default function PlayerEloProgressionPage() {
     const { isWin, isLoss } = getResultInfo(point)
     const fatigueConfig = getFatigueConfig(point.fatigueX)
     const fatiguePercentage = Math.min(100, (point.fatigueX / 30) * 100)
+    const prediction = getEloPredictionInfo(point)
 
     return (
       <div className="space-y-3">
@@ -350,19 +384,19 @@ export default function PlayerEloProgressionPage() {
             className={cn(
               "p-1.5 rounded-lg transition-all border",
               selectedIndex === 0
-                ? "opacity-30 cursor-not-allowed border-slate-200"
-                : "hover:bg-slate-50 border-slate-200 hover:border-slate-300 active:scale-95"
+                ? "opacity-30 cursor-not-allowed border-border"
+                : "hover:bg-accent border-border hover:border-accent-foreground/20 active:scale-95"
             )}
           >
-            <ChevronLeft className="w-4 h-4 text-slate-600" />
+            <ChevronLeft className="w-4 h-4 text-muted-foreground" />
           </button>
 
           <div className="text-center flex items-center gap-3">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-sm font-medium text-slate-600">
+            <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">
               {formatDateTimeEST(point.date)}
             </span>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-muted-foreground">
               ({(selectedIndex ?? 0) + 1}/{chartData.length})
             </span>
           </div>
@@ -373,18 +407,20 @@ export default function PlayerEloProgressionPage() {
             className={cn(
               "p-1.5 rounded-lg transition-all border",
               selectedIndex === chartData.length - 1
-                ? "opacity-30 cursor-not-allowed border-slate-200"
-                : "hover:bg-slate-50 border-slate-200 hover:border-slate-300 active:scale-95"
+                ? "opacity-30 cursor-not-allowed border-border"
+                : "hover:bg-accent border-border hover:border-accent-foreground/20 active:scale-95"
             )}
           >
-            <ChevronRight className="w-4 h-4 text-slate-600" />
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
 
         {/* Score + Stats Row - All on one line */}
         <div className={cn(
           "rounded-xl p-3 flex items-center justify-between gap-4",
-          isWin ? "bg-green-50" : isLoss ? "bg-red-50" : "bg-amber-50"
+          isWin ? "bg-green-50 dark:bg-green-950/30" :
+          isLoss ? "bg-red-50 dark:bg-red-950/30" :
+          "bg-amber-50 dark:bg-amber-950/30"
         )}>
           {/* Result + Score */}
           <div className="flex items-center gap-3">
@@ -397,7 +433,7 @@ export default function PlayerEloProgressionPage() {
               {isWin && <Trophy className="w-3 h-3" />}
               {isWin ? 'W' : isLoss ? 'L' : 'D'}
             </div>
-            <div className="text-3xl font-black text-slate-900">
+            <div className="text-3xl font-black text-foreground">
               {point.playerTeam === 1 ? point.team1Score : point.team2Score}-{point.playerTeam === 1 ? point.team2Score : point.team1Score}
             </div>
           </div>
@@ -405,15 +441,15 @@ export default function PlayerEloProgressionPage() {
           {/* ELO + Delta + Goals */}
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <Target className="w-4 h-4 text-slate-400" />
-              <span className="text-xl font-bold text-slate-800">{point.y}</span>
+              <Target className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xl font-bold text-foreground">{Math.round(point.y)}</span>
               <span className={cn(
                 "text-sm font-bold px-1.5 py-0.5 rounded",
-                point.deltaELO > 0 ? "text-green-700 bg-green-100" :
-                point.deltaELO < 0 ? "text-red-700 bg-red-100" :
-                "text-slate-600 bg-slate-200"
+                point.deltaELO > 0 ? "text-green-700 dark:text-green-200 bg-green-100 dark:bg-green-900/50" :
+                point.deltaELO < 0 ? "text-red-700 dark:text-red-200 bg-red-100 dark:bg-red-900/50" :
+                "text-muted-foreground bg-muted"
               )}>
-                {point.deltaELO > 0 ? '+' : ''}{point.deltaELO}
+                {point.deltaELO > 0 ? '+' : ''}{Math.round(point.deltaELO)}
               </span>
             </div>
             {point.goalkeeper ? (
@@ -429,12 +465,12 @@ export default function PlayerEloProgressionPage() {
         {/* Fatigue + ELO Averages Row */}
         <div className="grid grid-cols-4 gap-2">
           {/* Fatigue */}
-          <div className="bg-slate-50 rounded-lg p-2 border border-slate-200">
+          <div className="bg-muted/50 rounded-lg p-2 border border-border">
             <div className="flex items-center gap-1 mb-1">
-              <Battery className="w-3 h-3 text-slate-500" />
-              <span className="text-[10px] font-bold text-slate-500 uppercase">Fatigue</span>
+              <Battery className="w-3 h-3 text-muted-foreground" />
+              <span className="text-[10px] font-bold text-muted-foreground uppercase">Fatigue</span>
             </div>
-            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
               <div
                 className={cn("h-full rounded-full", fatigueConfig.bgColor)}
                 style={{ width: `${fatiguePercentage}%` }}
@@ -446,43 +482,43 @@ export default function PlayerEloProgressionPage() {
           </div>
 
           {/* Team Avg */}
-          <div className="bg-blue-50 rounded-lg p-2 border border-blue-200 text-center">
-            <div className="text-[10px] font-bold text-blue-600 uppercase">Team</div>
-            <div className="text-lg font-black text-blue-700">{point.teamAvgElo}</div>
+          <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-2 border border-blue-200 dark:border-blue-800 text-center">
+            <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase">Team</div>
+            <div className="text-lg font-black text-blue-700 dark:text-blue-300">{point.teamAvgElo}</div>
           </div>
 
           {/* Teammates Avg */}
-          <div className="bg-slate-50 rounded-lg p-2 border border-slate-200 text-center">
-            <div className="text-[10px] font-bold text-slate-500 uppercase">Mates</div>
-            <div className="text-lg font-black text-slate-700">{point.teammatesAvgElo || '-'}</div>
+          <div className="bg-muted/50 rounded-lg p-2 border border-border text-center">
+            <div className="text-[10px] font-bold text-muted-foreground uppercase">Mates</div>
+            <div className="text-lg font-black text-foreground">{point.teammatesAvgElo || '-'}</div>
           </div>
 
           {/* Opponents Avg */}
-          <div className="bg-red-50 rounded-lg p-2 border border-red-200 text-center">
-            <div className="text-[10px] font-bold text-red-600 uppercase">Opp</div>
-            <div className="text-lg font-black text-red-700">{point.opponentsAvgElo}</div>
+          <div className="bg-red-50 dark:bg-red-950/30 rounded-lg p-2 border border-red-200 dark:border-red-800 text-center">
+            <div className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase">Opp</div>
+            <div className="text-lg font-black text-red-700 dark:text-red-300">{point.opponentsAvgElo}</div>
           </div>
         </div>
 
         {/* Teams - Side by side on both mobile and PC */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
+          <div className="bg-blue-50 dark:bg-blue-950/30 rounded-xl p-3 border border-blue-200 dark:border-blue-800">
             <div className="flex items-center gap-1.5 mb-2">
-              <Users className="w-3.5 h-3.5 text-blue-600" />
-              <span className="text-xs font-bold text-blue-700">Team</span>
+              <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span className="text-xs font-bold text-blue-700 dark:text-blue-300">Team</span>
             </div>
             <div className="space-y-1">
               {/* Player first with special styling */}
               <div
-                className="flex items-center gap-2 border-2 border-blue-300 rounded px-2 py-1"
+                className="flex items-center gap-2 border-2 border-blue-300 dark:border-blue-700 rounded px-2 py-1"
                 style={getFatigueStyle(point.fatigueX)}
               >
-                <span className="text-xs font-bold text-slate-900 truncate flex-1">{playerName}</span>
+                <span className="text-xs font-bold text-foreground truncate flex-1">{playerName}</span>
                 <div className="flex items-center gap-1">
                   {point.goals > 0 && (
                     <span className="text-xs">⚽</span>
                   )}
-                  <span className="text-[10px] font-bold text-blue-700 bg-blue-200 px-1.5 rounded">{point.playerElo}</span>
+                  <span className="text-[10px] font-bold text-blue-700 dark:text-blue-200 bg-blue-200 dark:bg-blue-900 px-1.5 rounded">{Math.round(point.playerElo)}</span>
                 </div>
               </div>
               {/* Teammates */}
@@ -492,21 +528,21 @@ export default function PlayerEloProgressionPage() {
                   className="flex items-center gap-2 rounded px-2 py-1"
                   style={getFatigueStyle(p.fatigueX)}
                 >
-                  <span className="text-xs font-medium text-slate-700 truncate flex-1">{p.name}</span>
+                  <span className="text-xs font-medium text-foreground truncate flex-1">{p.name}</span>
                   <div className="flex items-center gap-1">
                     {p.goals > 0 && (
                       <span className="text-xs">⚽</span>
                     )}
-                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 rounded">{p.elo}</span>
+                    <span className="text-[10px] font-bold text-muted-foreground bg-muted px-1.5 rounded">{Math.round(p.elo)}</span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-          <div className="bg-red-50 rounded-xl p-3 border border-red-200">
+          <div className="bg-red-50 dark:bg-red-950/30 rounded-xl p-3 border border-red-200 dark:border-red-800">
             <div className="flex items-center gap-1.5 mb-2">
-              <Swords className="w-3.5 h-3.5 text-red-500" />
-              <span className="text-xs font-bold text-red-700">Opponents</span>
+              <Swords className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />
+              <span className="text-xs font-bold text-red-700 dark:text-red-300">Opponents</span>
             </div>
             <div className="space-y-1">
               {point.opponents.map((p, idx) => (
@@ -515,15 +551,45 @@ export default function PlayerEloProgressionPage() {
                   className="flex items-center gap-2 rounded px-2 py-1"
                   style={getFatigueStyle(p.fatigueX)}
                 >
-                  <span className="text-xs font-medium text-slate-700 truncate flex-1">{p.name}</span>
+                  <span className="text-xs font-medium text-foreground truncate flex-1">{p.name}</span>
                   <div className="flex items-center gap-1">
                     {p.goals > 0 && (
                       <span className="text-xs">⚽</span>
                     )}
-                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 rounded">{p.elo}</span>
+                    <span className="text-[10px] font-bold text-muted-foreground bg-muted px-1.5 rounded">{Math.round(p.elo)}</span>
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ELO System Prediction Accuracy */}
+        <div className={cn(
+          "rounded-lg p-3 border",
+          prediction.correct ? "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800" :
+          prediction.isUpset ? "bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800" :
+          "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800"
+        )}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-muted-foreground uppercase">ELO Prediction</span>
+              <span className={cn(
+                "text-xs px-2 py-0.5 rounded-full font-bold",
+                prediction.correct ? "bg-blue-500 text-white" :
+                prediction.isUpset ? "bg-purple-500 text-white" :
+                "bg-amber-500 text-white"
+              )}>
+                {prediction.correct ? '✓ Correct' : prediction.isUpset ? '⚡ Upset!' : '~ Close'}
+              </span>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground">
+                Expected: <span className="font-bold capitalize">{prediction.expectedResult}</span> ({prediction.expectedScore})
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Actual: <span className="font-bold capitalize">{prediction.actualResult}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -532,30 +598,30 @@ export default function PlayerEloProgressionPage() {
   }
 
   return (
-    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex-shrink-0 bg-white border-b border-slate-200 px-4 py-2 shadow-sm">
+      <div className="flex-shrink-0 bg-card border-b border-border px-4 py-2 shadow-sm">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.back()}
-            className="p-1.5 -ml-1 rounded-full hover:bg-slate-100 active:bg-slate-200 transition-colors"
+            className="p-1.5 -ml-1 rounded-full hover:bg-accent active:bg-accent/80 transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-slate-700" />
+            <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
           <div className="flex-1">
-            <h1 className="text-base font-bold text-slate-800 truncate">
+            <h1 className="text-base font-bold text-foreground truncate">
               {playerName}
             </h1>
-            <p className="text-xs text-slate-500">{chartData.length} games</p>
+            <p className="text-xs text-muted-foreground">{chartData.length} games</p>
           </div>
           {/* Current ELO and Weekly Delta */}
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <div className="text-xl font-bold text-slate-800">{currentElo}</div>
+              <div className="text-xl font-bold text-foreground">{currentElo}</div>
               <div className={cn(
                 "text-xs font-bold flex items-center justify-end gap-0.5",
-                weeklyDelta > 0 ? "text-green-600" :
-                weeklyDelta < 0 ? "text-red-600" : "text-slate-500"
+                weeklyDelta > 0 ? "text-green-600 dark:text-green-500" :
+                weeklyDelta < 0 ? "text-red-600 dark:text-red-500" : "text-muted-foreground"
               )}>
                 {weeklyDelta > 0 ? <TrendingUp className="w-3 h-3" /> :
                  weeklyDelta < 0 ? <TrendingDown className="w-3 h-3" /> :
@@ -571,20 +637,20 @@ export default function PlayerEloProgressionPage() {
       <div className="flex-1 flex flex-col w-full overflow-hidden">
         {isLoading ? (
           <div className="flex justify-center items-center flex-1">
-            <div className="text-slate-500">Loading...</div>
+            <div className="text-muted-foreground">Loading...</div>
           </div>
         ) : error ? (
           <div className="flex justify-center items-center flex-1">
-            <div className="text-red-600">Error loading data</div>
+            <div className="text-red-600 dark:text-red-500">Error loading data</div>
           </div>
         ) : chartData.length === 0 ? (
           <div className="flex justify-center items-center flex-1">
-            <div className="text-slate-500">No games played yet</div>
+            <div className="text-muted-foreground">No games played yet</div>
           </div>
         ) : (
           <>
             {/* Chart - Top Section */}
-            <div className="flex-shrink-0 bg-white border-b border-slate-200 px-2 lg:px-6 py-2" style={{ height: '45vh' }}>
+            <div className="flex-shrink-0 bg-card border-b border-border px-2 lg:px-6 py-2" style={{ height: '45vh' }}>
               <div
                 ref={chartScrollRef}
                 className="h-full overflow-x-auto"
@@ -612,7 +678,7 @@ export default function PlayerEloProgressionPage() {
                         </linearGradient>
                       </defs>
 
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
 
                       <XAxis
                         dataKey="x"
@@ -648,7 +714,7 @@ export default function PlayerEloProgressionPage() {
                       <Line
                         type="monotone"
                         dataKey="y"
-                        stroke="#1e293b"
+                        stroke="hsl(var(--foreground))"
                         strokeWidth={2}
                         dot={(props: CustomDotProps) => {
                           const { cx, cy, payload } = props
@@ -732,12 +798,12 @@ export default function PlayerEloProgressionPage() {
             </div>
 
             {/* Game Details - Bottom Section */}
-            <div className="flex-1 bg-white overflow-y-auto">
+            <div className="flex-1 bg-card overflow-y-auto">
               <div className="p-3 lg:p-4">
                 {selectedPoint ? (
                   renderGameDetails(selectedPoint)
                 ) : (
-                  <div className="text-center py-8 text-slate-400">
+                  <div className="text-center py-8 text-muted-foreground">
                     Click on a point to see game details
                   </div>
                 )}

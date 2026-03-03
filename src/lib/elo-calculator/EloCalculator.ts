@@ -67,6 +67,7 @@ export class EloCalculator {
     /**
      * Computes the base ELO pot for a team (before individual distribution).
      * This is the raw score difference that will be distributed among players.
+     * Applies margin-of-victory multiplier for decisive wins.
      */
     private getTeamEloPot(expectedScore: number, actualScore: number): number {
         let scoreDiff = actualScore - expectedScore;
@@ -74,9 +75,32 @@ export class EloCalculator {
         // Apply draw multiplier if it's a draw
         if (actualScore === EloParameters.DRAW_SCORE) {
             scoreDiff *= EloParameters.DRAW_ELO_MULTIPLIER;
+        } else {
+            // Apply margin-of-victory multiplier for wins/losses
+            const movMultiplier = this.getMarginOfVictoryMultiplier();
+            scoreDiff *= movMultiplier;
         }
 
         return scoreDiff;
+    }
+
+    /**
+     * Calculates the margin-of-victory multiplier.
+     * Uses logarithmic scaling to reward decisive wins without
+     * making blowouts worth excessive ELO.
+     */
+    private getMarginOfVictoryMultiplier(): number {
+        const team1Goals = this.game.getTeamGoals(this.game.getTeam1());
+        const team2Goals = this.game.getTeamGoals(this.game.getTeam2());
+        const goalDiff = Math.abs(team1Goals - team2Goals);
+
+        if (goalDiff === 0) {
+            return EloParameters.MOV_BASE; // Draw, no bonus
+        }
+
+        // Logarithmic scaling: ln(1 + goalDiff) * scaling factor
+        // This gives diminishing returns for larger margins
+        return EloParameters.MOV_BASE + Math.log(1 + goalDiff) * EloParameters.MOV_SCALING;
     }
 
     /**

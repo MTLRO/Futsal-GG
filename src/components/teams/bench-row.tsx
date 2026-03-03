@@ -1,8 +1,9 @@
 "use client"
 
+import { memo } from "react"
 import { useDroppable } from "@dnd-kit/core"
 import { Player, getPlayerById } from "@/lib/team-utils"
-import { DraggablePlayerCard } from "./player-card"
+import { DraggableBenchChip } from "./player-card"
 
 interface BenchRowProps {
   title: string
@@ -10,14 +11,18 @@ interface BenchRowProps {
   allPlayers: Player[]
   teamLetter: string
   isUnassigned?: boolean
+  pendingPlayerId?: number | null
+  onBenchTap?: (playerId: number, teamLetter: string) => void
 }
 
-export function BenchRow({
+export const BenchRow = memo(function BenchRow({
   title,
   playerIds,
   allPlayers,
   teamLetter,
   isUnassigned = false,
+  pendingPlayerId = null,
+  onBenchTap,
 }: BenchRowProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `bench-${teamLetter}`,
@@ -27,28 +32,43 @@ export function BenchRow({
   return (
     <div
       ref={isUnassigned ? setNodeRef : undefined}
-      className={`px-2 py-1 rounded-lg transition-colors ${isOver ? "bg-gray-200" : ""}`}
+      className={`px-2 py-1.5 rounded-lg transition-colors ${isOver ? "bg-blue-50" : ""}`}
     >
-      <div className="text-gray-600 text-[10px] sm:text-xs mb-1 font-medium">{title}</div>
-      <div className={`flex gap-2 overflow-x-auto pb-1 scrollbar-hide min-h-[80px] ${isUnassigned ? "border-2 border-dashed border-gray-300 rounded-lg p-2" : ""}`}>
-        {playerIds.length > 0 ? (
-          playerIds.map((playerId) => {
+      <div className="text-gray-500 text-[10px] font-semibold uppercase tracking-wide mb-1.5">
+        {title}
+      </div>
+
+      {playerIds.length === 0 ? (
+        <div
+          className={`flex items-center justify-center rounded-lg py-3 text-xs text-gray-400
+            ${isUnassigned ? "border-2 border-dashed border-gray-200 min-h-[44px]" : ""}`}
+        >
+          {isUnassigned ? "All players assigned" : "—"}
+        </div>
+      ) : (
+        <div
+          className={`flex flex-wrap gap-1.5 ${
+            isUnassigned ? "p-2 border-2 border-dashed border-gray-200 rounded-lg" : ""
+          } ${isOver && isUnassigned ? "border-blue-300" : ""}`}
+        >
+          {playerIds.map((playerId) => {
             const player = getPlayerById(playerId, allPlayers)
-            return player ? (
-              <DraggablePlayerCard
+            if (!player) return null
+            return (
+              <DraggableBenchChip
                 key={playerId}
                 playerId={playerId}
                 player={player}
                 dragId={`bench-${teamLetter}-${playerId}`}
+                isPendingSource={pendingPlayerId === playerId}
+                onPress={() => onBenchTap?.(playerId, teamLetter)}
               />
-            ) : null
-          })
-        ) : (
-          <div className="text-gray-400 text-xs py-4 flex items-center">
-            {isUnassigned ? "Drop players here" : "No players"}
-          </div>
-        )}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
-}
+})
+
+BenchRow.displayName = "BenchRow"

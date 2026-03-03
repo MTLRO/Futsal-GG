@@ -73,3 +73,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+/**
+ * DELETE /api/teams
+ * Clears all team compositions (daily reset).
+ */
+export async function DELETE() {
+  try {
+    await Promise.all([
+      prisma.teamComposition.upsert({
+        where: { team: "A" },
+        update: { playerIds: [] },
+        create: { team: "A", playerIds: [] },
+      }),
+      prisma.teamComposition.upsert({
+        where: { team: "B" },
+        update: { playerIds: [] },
+        create: { team: "B", playerIds: [] },
+      }),
+      prisma.teamComposition.upsert({
+        where: { team: "C" },
+        update: { playerIds: [] },
+        create: { team: "C", playerIds: [] },
+      }),
+    ]);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

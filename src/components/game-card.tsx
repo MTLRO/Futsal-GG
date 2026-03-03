@@ -9,6 +9,7 @@ import { ChevronDown, Video, Trophy, Plus, Minus, Hand } from "lucide-react"
 import { VideoManageModal } from "@/components/video-manage-modal"
 import { useAdmin } from "@/contexts/admin-context"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { cn } from "@/lib/utils"
 
 interface Player {
   playerId: number
@@ -107,13 +108,13 @@ function PlayerRow({ player, gameId, isEditMode, getFatigueConfig, getEloIcon, g
           <div className="flex items-center gap-1.5">
             <span className="font-medium">{player.name}</span>
             {player.goalkeeper && (
-              <Hand className="w-4 h-4 text-blue-600" />
+              <Hand className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             )}
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm text-muted-foreground">{player.elo}</span>
+            <span className="font-semibold text-sm text-muted-foreground">{Math.round(player.elo)}</span>
             <div className={`flex items-center gap-1 font-semibold text-sm ${getEloColor(player.deltaELO)}`}>
-              {player.deltaELO > 0 ? "+" : ""}{player.deltaELO}
+              {player.deltaELO > 0 ? "+" : ""}{Math.round(player.deltaELO)}
               {getEloIcon(player.deltaELO)}
             </div>
           </div>
@@ -160,10 +161,10 @@ function PlayerRow({ player, gameId, isEditMode, getFatigueConfig, getEloIcon, g
       {/* Fatigue Tooltip on Hover */}
       {showTooltip && !isEditMode && (
         <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 z-50">
-          <div className="bg-slate-900 text-white px-2.5 py-1.5 rounded text-xs whitespace-nowrap shadow-lg">
+          <div className="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-2.5 py-1.5 rounded text-xs whitespace-nowrap shadow-lg">
             Fatigue: {player.fatigueX} min
           </div>
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-slate-100" />
         </div>
       )}
     </div>
@@ -188,6 +189,36 @@ export function GameCard({
   const handlePlayerUpdate = () => {
     // Refetch game history after player update
     queryClient.invalidateQueries({ queryKey: ["gameHistory"] })
+  }
+
+  const getEloPredictionInfo = () => {
+    // Calculate expected score using ELO formula
+    const eloDiff = game.team2AverageElo - game.team1AverageElo
+    const expectedScore = 1 / (1 + Math.pow(10, eloDiff / 400))
+
+    // Simple prediction: higher ELO team wins (never predict tie)
+    const expectedResult: 'win' | 'loss' = game.team1AverageElo >= game.team2AverageElo ? 'win' : 'loss'
+
+    // Get actual result
+    const actualResult = isTeam1Winner ? 'win' : isTeam2Winner ? 'loss' : 'tie'
+
+    // For draws, check if ELO was close (within 30 points) - consider it "reasonable"
+    const isDraw = !isTeam1Winner && !isTeam2Winner
+    const eloDiffAbs = Math.abs(game.team1AverageElo - game.team2AverageElo)
+    const isCloseDraw = isDraw && eloDiffAbs < 30
+
+    // Determine if prediction was correct
+    const correct = isDraw ? isCloseDraw : (expectedResult === actualResult)
+    const isUpset = !isDraw && expectedResult !== actualResult
+
+    return {
+      expectedResult: isDraw ? 'close' : expectedResult,
+      actualResult,
+      correct,
+      isUpset,
+      isDraw,
+      expectedScore: (expectedScore * 100).toFixed(0) + '%'
+    }
   }
 
   // Helper to format timestamp as m:ss
@@ -278,7 +309,7 @@ export function GameCard({
                   }}
                   aria-label={game.videoLink ? "Watch/Edit game video" : "Add game video"}
                 >
-                  <Video className={`w-5 h-5 ${game.videoLink ? 'text-blue-600' : 'text-muted-foreground'}`} />
+                  <Video className={`w-5 h-5 ${game.videoLink ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`} />
                 </div>
               </div>
             </div>
@@ -319,9 +350,9 @@ export function GameCard({
                 </div>
 
                 <div className="flex items-center justify-center gap-4 mt-2 text-xs text-muted-foreground">
-                  <span>Avg ELO: {game.team1AverageElo}</span>
+                  <span>Avg ELO: {Math.round(game.team1AverageElo)}</span>
                   <span>•</span>
-                  <span>Avg ELO: {game.team2AverageElo}</span>
+                  <span>Avg ELO: {Math.round(game.team2AverageElo)}</span>
                 </div>
               </div>
 
@@ -338,6 +369,41 @@ export function GameCard({
 
         <CollapsibleContent className="transition-all duration-200">
           <CardContent className="pt-0 pb-4 px-4 space-y-4">
+            {/* ELO System Prediction Accuracy */}
+            {(() => {
+              const prediction = getEloPredictionInfo()
+              return (
+                <div className={cn(
+                  "rounded-lg p-3 border",
+                  prediction.correct ? "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800" :
+                  prediction.isUpset ? "bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800" :
+                  "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800"
+                )}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-muted-foreground uppercase">ELO Prediction</span>
+                      <Badge className={cn(
+                        "text-xs font-bold",
+                        prediction.correct ? "bg-blue-500 hover:bg-blue-600" :
+                        prediction.isUpset ? "bg-purple-500 hover:bg-purple-600" :
+                        "bg-amber-500 hover:bg-amber-600"
+                      )}>
+                        {prediction.correct ? '✓ Correct' : prediction.isUpset ? '⚡ Upset!' : '~ Close'}
+                      </Badge>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-muted-foreground">
+                        Expected: <span className="font-bold capitalize">{prediction.expectedResult}</span> ({prediction.expectedScore})
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Actual: <span className="font-bold capitalize">{prediction.actualResult}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Team 1 */}
             <div>
               <div className="flex items-center gap-2 mb-3">

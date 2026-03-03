@@ -101,8 +101,18 @@ export class Player {
         return output;
     }
 
+    /**
+     * Calculates the fatigue coefficient based on accumulated fatigue minutes.
+     * Fresh players (fatigueX = 0) get full strength (1.0).
+     * Fatigued players get reduced effective ELO (down to 85% minimum).
+     */
     private getFatigueCoefficient(): number {
-        return Math.min(1, (this.fatigueX / 20) ** 2);
+        // fatigueX is fatigue in minutes (0 = fresh, higher = more tired)
+        // Linear decay with minimum floor
+        return Math.max(
+            EloParameters.FATIGUE_MIN_COEFFICIENT,
+            EloParameters.NO_FATIGUE_MULTIPLIER - this.fatigueX * EloParameters.FATIGUE_COEFFICIENT
+        );
     }
 
     /**
@@ -166,14 +176,35 @@ export class Player {
         return Math.max(EloParameters.MIN_Q_FACTOR, 1.0 - this.gamesPlayed * EloParameters.EXPERIENCE_WEIGHT);
     }
 
+    /**
+     * Gets the K-factor for this player, which determines rating volatility.
+     * Higher K = larger rating changes per game.
+     *
+     * Factors:
+     * - Base K depends on current ELO tier (high/mid/low rated players)
+     * - Confidence multiplier boosts K for new players (< CONFIDENCE_GAMES_THRESHOLD games)
+     */
     public getKFactor(): number {
+        let baseK: number;
         if (this.staticElo >= EloParameters.K_FACTOR_HIGH_THRESHOLD) {
-            return EloParameters.K_FACTOR_HIGH;
+            baseK = EloParameters.K_FACTOR_HIGH;
         } else if (this.staticElo >= EloParameters.K_FACTOR_MID_THRESHOLD) {
-            return EloParameters.K_FACTOR_MID;
+            baseK = EloParameters.K_FACTOR_MID;
         } else {
-            return EloParameters.K_FACTOR_LOW;
+            baseK = EloParameters.K_FACTOR_LOW;
         }
+
+        // Apply confidence multiplier for new players
+        // New players get higher K to reach their true rating faster
+        if (this.gamesPlayed < EloParameters.CONFIDENCE_GAMES_THRESHOLD) {
+            const confidenceRatio = this.gamesPlayed / EloParameters.CONFIDENCE_GAMES_THRESHOLD;
+            // Linearly interpolate from NEWCOMER_MULTIPLIER down to 1.0
+            const multiplier = EloParameters.CONFIDENCE_NEWCOMER_MULTIPLIER -
+                (EloParameters.CONFIDENCE_NEWCOMER_MULTIPLIER - 1.0) * confidenceRatio;
+            return baseK * multiplier;
+        }
+
+        return baseK;
     }
 
     public getStaticElo(): number {

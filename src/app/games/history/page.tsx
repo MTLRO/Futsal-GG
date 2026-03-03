@@ -97,23 +97,23 @@ export default function GameHistoryPage() {
   }
 
   const getEloColor = (deltaELO: number) => {
-    if (deltaELO > 0) return "text-green-600"
-    if (deltaELO < 0) return "text-red-600"
+    if (deltaELO > 0) return "text-green-600 dark:text-green-500"
+    if (deltaELO < 0) return "text-red-600 dark:text-red-500"
     return "text-muted-foreground"
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3">
+      <div className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.back()}
-            className="p-2 -ml-2 rounded-full hover:bg-slate-100 active:bg-slate-200 transition-colors"
+            className="p-2 -ml-2 rounded-full hover:bg-accent active:bg-accent/80 transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-slate-700" />
+            <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
-          <h1 className="text-lg font-bold text-slate-800">Game History</h1>
+          <h1 className="text-lg font-bold text-foreground">Game History</h1>
         </div>
       </div>
 
@@ -121,15 +121,15 @@ export default function GameHistoryPage() {
       <div className="p-4">
         {isLoading ? (
           <div className="flex justify-center items-center py-20">
-            <div className="text-slate-500">Loading game history...</div>
+            <div className="text-muted-foreground">Loading game history...</div>
           </div>
         ) : error ? (
           <div className="flex justify-center items-center py-20">
-            <div className="text-red-600">Error loading game history</div>
+            <div className="text-red-600 dark:text-red-500">Error loading game history</div>
           </div>
         ) : gameHistory.length === 0 ? (
           <div className="flex justify-center items-center py-20">
-            <div className="text-slate-500">No games played yet</div>
+            <div className="text-muted-foreground">No games played yet</div>
           </div>
         ) : (
           <div className="space-y-6">
@@ -137,7 +137,7 @@ export default function GameHistoryPage() {
               <div key={date}>
                 {/* Date Header */}
                 <div className="mb-3">
-                  <h3 className="text-lg font-semibold text-slate-800">{date}</h3>
+                  <h3 className="text-lg font-semibold text-foreground">{date}</h3>
                 </div>
 
                 {/* Games for this date */}
