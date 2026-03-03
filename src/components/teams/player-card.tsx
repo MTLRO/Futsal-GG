@@ -32,14 +32,14 @@ export const PlayerCard = memo(function PlayerCard({
         className={`w-[92px] h-[92px] sm:w-[108px] sm:h-[108px] rounded-xl border-2 border-dashed
           flex flex-col items-center justify-center gap-1 transition-all
           ${isPendingTarget
-            ? "border-blue-400 bg-blue-50 cursor-pointer scale-105"
-            : "border-gray-300 bg-gray-50"
+            ? "border-blue-400 bg-blue-50 dark:bg-blue-950/30 cursor-pointer scale-105"
+            : "border-border bg-muted/50"
           } ${className}`}
       >
         {isPendingTarget ? (
           <span className="text-blue-400 text-xl font-light leading-none">+</span>
         ) : (
-          <span className="text-gray-300 text-xs">{isGK ? "GK" : "+"}</span>
+          <span className="text-muted-foreground/50 text-xs">{isGK ? "GK" : "+"}</span>
         )}
         {isGK && isPendingTarget && (
           <span className="text-blue-400 text-[9px] font-semibold">GK</span>
@@ -56,12 +56,12 @@ export const PlayerCard = memo(function PlayerCard({
         ${isPendingSource
           ? "border-blue-500 ring-2 ring-blue-400 ring-offset-1 scale-105 z-10"
           : isHighlighted
-          ? "border-black ring-2 ring-black scale-110 z-10"
+          ? "border-foreground ring-2 ring-foreground scale-110 z-10"
           : isPendingTarget
           ? "border-blue-300 ring-1 ring-blue-200"
-          : "border-gray-200"
+          : "border-border"
         }
-        ${isGK ? "bg-gray-100" : "bg-white"}
+        ${isGK ? "bg-muted" : "bg-card"}
         ${className}`}
       style={{
         boxShadow: isPendingSource
@@ -72,11 +72,11 @@ export const PlayerCard = memo(function PlayerCard({
       }}
     >
       <div className="h-full flex flex-col items-center justify-center p-1.5 gap-0.5">
-        <div className="text-gray-900 font-bold text-xs sm:text-sm text-center leading-tight w-full px-1 line-clamp-2">
+        <div className="text-foreground font-bold text-xs sm:text-sm text-center leading-tight w-full px-1 line-clamp-2">
           {player.name}
         </div>
-        <div className="text-gray-400 text-[10px] sm:text-xs">{player.elo}</div>
-        {isGK && <div className="text-gray-400 text-[9px] font-semibold tracking-wider">GK</div>}
+        <div className="text-muted-foreground text-[10px] sm:text-xs">{player.elo}</div>
+        {isGK && <div className="text-muted-foreground text-[9px] font-semibold tracking-wider">GK</div>}
         {isPendingTarget && (
           <div className="text-blue-400 text-[9px] font-semibold">SWAP</div>
         )}
@@ -107,13 +107,13 @@ export const BenchChip = memo(function BenchChip({
         cursor-pointer select-none transition-all active:scale-95
         ${isPendingSource
           ? "bg-blue-500 border-blue-500 text-white shadow-md"
-          : "bg-white border-gray-300 text-gray-800 active:bg-gray-100"
+          : "bg-card border-border text-foreground active:bg-muted"
         }`}
     >
       <span className="text-xs font-semibold whitespace-nowrap">
         {player.name} {player.lastName.charAt(0)}.
       </span>
-      <span className={`text-[10px] ${isPendingSource ? "text-blue-200" : "text-gray-400"}`}>
+      <span className={`text-[10px] ${isPendingSource ? "text-blue-200" : "text-muted-foreground"}`}>
         {player.elo}
       </span>
     </div>

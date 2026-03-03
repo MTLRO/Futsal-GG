@@ -480,7 +480,7 @@ export default function AddGamePage() {
         <div className="border-2 border-dashed border-primary rounded-lg p-4 min-h-[400px] bg-secondary/50">
           <div className="space-y-3">
             {teamPlayers.map((playerId) => (
-              <div key={playerId} className="flex items-center gap-2 bg-white p-3 rounded border border-gray-200">
+              <div key={playerId} className="flex items-center gap-2 bg-card p-3 rounded border border-border">
                 <Button
                   size="sm"
                   variant={goalkeepers.has(playerId) ? "default" : "outline"}
@@ -562,17 +562,17 @@ export default function AddGamePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3">
+      <div className="sticky top-0 z-10 bg-background border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.back()}
-            className="p-2 -ml-2 rounded-full hover:bg-slate-100 active:bg-slate-200 transition-colors"
+            className="p-2 -ml-2 rounded-full hover:bg-muted active:bg-muted transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-slate-700" />
+            <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
-          <h1 className="text-lg font-bold text-slate-800">
+          <h1 className="text-lg font-bold text-foreground">
             {gameMode === "live" ? "Live Game" : "Record a Game"}
           </h1>
           {gameMode === "live" && liveGameStarted && (
