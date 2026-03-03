@@ -103,14 +103,17 @@ model PlayerLink {
 }
 
 model DraftSession {
-  id              String             @id @default(uuid())
-  playerIds       Int[]              // 15 players in ELO rank order (rank 1..15)
-  picks           Int[]              // Player IDs in the order they were picked (grows to length 15)
-  captain1Token   String             @unique
-  captain2Token   String             @unique
-  captain3Token   String             @unique
-  status          DraftSessionStatus @default(ACTIVE)
-  createdAt       DateTime           @default(now())
+  id                String             @id @default(uuid())
+  playerIds         Int[]              // 15 players in ELO rank order (rank 1..15)
+  picks             Int[]              // Player IDs in the order they were picked (grows to length 12)
+  captain1Token     String             @unique
+  captain2Token     String             @unique
+  captain3Token     String             @unique
+  captain1PlayerId  Int?               // Player each captain identified as
+  captain2PlayerId  Int?
+  captain3PlayerId  Int?
+  status            DraftSessionStatus @default(ACTIVE)
+  createdAt         DateTime           @default(now())
 }
 
 enum DraftSessionStatus {

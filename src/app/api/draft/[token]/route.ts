@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
-import { PICK_ORDER } from "@/lib/draft-utils";
+import { PICK_ORDER, TOTAL_PICKS } from "@/lib/draft-utils";
 
 function getCaptainIndex(session: {
   captain1Token: string;
@@ -64,7 +64,68 @@ export async function GET(
       captain1Token: session.captain1Token,
       captain2Token: session.captain2Token,
       captain3Token: session.captain3Token,
+      captain1PlayerId: session.captain1PlayerId,
+      captain2PlayerId: session.captain2PlayerId,
+      captain3PlayerId: session.captain3PlayerId,
     });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH /api/draft/[token]
+ * Sets the captain's player identity.
+ * Body: { playerId: number }
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  const { token } = await params;
+  try {
+    const { playerId } = await request.json();
+
+    const session = await prisma.draftSession.findFirst({
+      where: {
+        OR: [
+          { captain1Token: token },
+          { captain2Token: token },
+          { captain3Token: token },
+        ],
+      },
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Draft session not found" }, { status: 404 });
+    }
+
+    const captainIndex = getCaptainIndex(session, token);
+    if (captainIndex === null) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 403 });
+    }
+
+    if (!session.playerIds.includes(playerId)) {
+      return NextResponse.json({ error: "Player not in this draft" }, { status: 400 });
+    }
+
+    // Check not already claimed by another captain
+    const takenByOther = [session.captain1PlayerId, session.captain2PlayerId, session.captain3PlayerId]
+      .some((id, i) => id === playerId && i !== captainIndex);
+
+    if (takenByOther) {
+      return NextResponse.json({ error: "This player is already identified by another captain" }, { status: 409 });
+    }
+
+    const field = (["captain1PlayerId", "captain2PlayerId", "captain3PlayerId"] as const)[captainIndex];
+
+    await prisma.draftSession.update({
+      where: { id: session.id },
+      data: { [field]: playerId },
+    });
+
+    return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -102,10 +163,15 @@ export async function POST(
       return NextResponse.json({ error: "Draft is already complete" }, { status: 400 });
     }
 
+    // All captains must have identified before picking starts
+    if (!session.captain1PlayerId || !session.captain2PlayerId || !session.captain3PlayerId) {
+      return NextResponse.json({ error: "All captains must identify before drafting begins" }, { status: 400 });
+    }
+
     const captainIndex = getCaptainIndex(session, token);
     const currentPickIndex = session.picks.length;
 
-    if (currentPickIndex >= 15) {
+    if (currentPickIndex >= TOTAL_PICKS) {
       return NextResponse.json({ error: "All picks have been made" }, { status: 400 });
     }
 
@@ -121,24 +187,27 @@ export async function POST(
       return NextResponse.json({ error: "Player already picked" }, { status: 400 });
     }
 
+    // Block picking a captain's identified player
+    const captainPlayerIds = [session.captain1PlayerId, session.captain2PlayerId, session.captain3PlayerId];
+    if (captainPlayerIds.includes(playerId)) {
+      return NextResponse.json({ error: "Cannot pick a captain — they are already on their team" }, { status: 400 });
+    }
+
     const newPicks = [...session.picks, playerId];
-    const isComplete = newPicks.length === 15;
+    const isComplete = newPicks.length === TOTAL_PICKS;
 
-    // Build teams from picks using PICK_ORDER
-    // Captain 0 (1st pick) → Team A, Captain 1 → Team B, Captain 2 → Team C
     if (isComplete) {
-      const teamA: number[] = [];
-      const teamB: number[] = [];
-      const teamC: number[] = [];
+      const teamA: number[] = [session.captain1PlayerId];
+      const teamB: number[] = [session.captain2PlayerId];
+      const teamC: number[] = [session.captain3PlayerId];
 
-      for (let i = 0; i < 15; i++) {
+      for (let i = 0; i < TOTAL_PICKS; i++) {
         const cap = PICK_ORDER[i];
         if (cap === 0) teamA.push(newPicks[i]);
         else if (cap === 1) teamB.push(newPicks[i]);
         else teamC.push(newPicks[i]);
       }
 
-      // Pad to 5 (should already be 5 each)
       await Promise.all([
         prisma.teamComposition.upsert({
           where: { team: "A" },
