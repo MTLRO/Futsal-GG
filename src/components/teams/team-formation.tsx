@@ -76,9 +76,9 @@ export function TeamFormation({
     <div className="w-full h-full flex flex-col">
       {/* Team header */}
       <div className="text-center py-2">
-        <h2 className="text-gray-900 text-base font-bold">Team {teamName}</h2>
+        <h2 className="text-foreground text-base font-bold">Team {teamName}</h2>
         <div className="flex items-center justify-center gap-2">
-          <p className="text-gray-400 text-xs">
+          <p className="text-muted-foreground text-xs">
             {hasFullTeam ? avgElo : staticAvgElo || "—"} ELO
           </p>
           {hasFullTeam && chemistryDelta !== 0 && (
@@ -102,16 +102,16 @@ export function TeamFormation({
       <div className="flex-1 flex items-center justify-center mx-1 mb-2">
         <div className="relative w-full max-w-[360px] aspect-[9/10]">
           {/* Field background */}
-          <div className="absolute inset-0 rounded-xl bg-white border-2 border-gray-900">
+          <div className="absolute inset-0 rounded-xl bg-emerald-600 dark:bg-emerald-800 border-2 border-emerald-500 dark:border-emerald-700">
             <svg
               className="absolute inset-0 w-full h-full"
               viewBox="0 0 100 100"
               preserveAspectRatio="none"
             >
-              <rect x="2" y="2" width="96" height="96" fill="none" stroke="black" strokeWidth="0.5" />
-              <path d="M 30 2 A 20 20 0 0 0 70 2" fill="none" stroke="black" strokeWidth="0.5" />
-              <path d="M 20 98 A 30 30 0 0 1 80 98" fill="none" stroke="black" strokeWidth="0.5" />
-              <line x1="35" y1="98" x2="65" y2="98" stroke="black" strokeWidth="1" />
+              <rect x="2" y="2" width="96" height="96" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5" />
+              <path d="M 30 2 A 20 20 0 0 0 70 2" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5" />
+              <path d="M 20 98 A 30 30 0 0 1 80 98" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="0.5" />
+              <line x1="35" y1="98" x2="65" y2="98" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
             </svg>
           </div>
 

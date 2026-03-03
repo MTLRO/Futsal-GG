@@ -121,15 +121,15 @@ function SelectPlayersModal({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-5 pt-5 pb-3 border-b border-gray-100">
+        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border">
           <DialogTitle>Select Players</DialogTitle>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Who is playing today?{" "}
-            <span className={`font-semibold ${selected.size === 15 ? "text-green-600" : "text-gray-700"}`}>
+            <span className={`font-semibold ${selected.size === 15 ? "text-green-600" : "text-foreground"}`}>
               {selected.size} selected
             </span>
             {selected.size !== 15 && (
-              <span className="text-gray-400"> · need 15 to enable Draft</span>
+              <span className="text-muted-foreground"> · need 15 to enable Draft</span>
             )}
           </p>
         </DialogHeader>
@@ -145,21 +145,21 @@ function SelectPlayersModal({
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left
                   transition-all active:scale-95 ${
                   isSelected
-                    ? "bg-black text-white border-black"
-                    : "bg-white border-gray-200 hover:border-gray-400 cursor-pointer"
+                    ? "bg-foreground text-background border-foreground"
+                    : "bg-card border-border hover:border-foreground/40 cursor-pointer"
                 }`}
               >
                 <div
                   className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 ${
-                    isSelected ? "border-white bg-white" : "border-gray-300"
+                    isSelected ? "border-background bg-background" : "border-border"
                   }`}
                 >
-                  {isSelected && <div className="w-2.5 h-2.5 rounded-sm bg-black" />}
+                  {isSelected && <div className="w-2.5 h-2.5 rounded-sm bg-foreground" />}
                 </div>
                 <span className="flex-1 font-semibold text-sm">
                   {player.name} {player.lastName}
                 </span>
-                <span className={`text-xs ${isSelected ? "text-gray-300" : "text-gray-400"}`}>
+                <span className={`text-xs ${isSelected ? "text-background/60" : "text-muted-foreground"}`}>
                   {games}g
                 </span>
               </button>
@@ -167,7 +167,7 @@ function SelectPlayersModal({
           })}
         </div>
 
-        <DialogFooter className="px-5 py-4 border-t border-gray-100">
+        <DialogFooter className="px-5 py-4 border-t border-border">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={() => onConfirm(Array.from(selected))} disabled={selected.size === 0}>
             Confirm ({selected.size})
@@ -212,9 +212,9 @@ function DraftLinksModal({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="p-0">
-        <DialogHeader className="px-5 pt-5 pb-3 border-b border-gray-100">
+        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border">
           <DialogTitle>Draft Links Created</DialogTitle>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Share each link with the corresponding captain. Snake order:{" "}
             <strong>1 → 2 → 3 → 3 → 2 → 1 → ...</strong>
           </p>
@@ -595,18 +595,18 @@ export default function ManageTeamsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 px-4 py-3">
+      <div className="sticky top-0 z-20 bg-background border-b border-border px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => router.back()}
-              className="p-2 -ml-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors shrink-0"
+              className="p-2 -ml-2 rounded-full hover:bg-muted active:bg-muted transition-colors shrink-0"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-700" />
+              <ArrowLeft className="w-5 h-5 text-foreground" />
             </button>
-            <h1 className="text-lg font-bold text-gray-900 truncate">Manage Teams</h1>
+            <h1 className="text-lg font-bold text-foreground truncate">Manage Teams</h1>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <Button
@@ -664,7 +664,7 @@ export default function ManageTeamsPage() {
                 key={team}
                 onClick={() => setActiveTeam(team)}
                 className={`h-2 rounded-full transition-all ${
-                  activeTeam === team ? "bg-black w-4" : "bg-gray-300 w-2"
+                  activeTeam === team ? "bg-foreground w-4" : "bg-muted-foreground/40 w-2"
                 }`}
               />
             ))}
@@ -675,7 +675,7 @@ export default function ManageTeamsPage() {
             <button
               onClick={() => canGoLeft && setActiveTeam(teams[currentTeamIndex - 1])}
               className={`absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 transition-colors ${
-                canGoLeft ? "text-gray-600 hover:text-black" : "text-gray-200"
+                canGoLeft ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/20"
               }`}
               disabled={!canGoLeft}
             >
@@ -698,7 +698,7 @@ export default function ManageTeamsPage() {
             <button
               onClick={() => canGoRight && setActiveTeam(teams[currentTeamIndex + 1])}
               className={`absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 transition-colors ${
-                canGoRight ? "text-gray-600 hover:text-black" : "text-gray-200"
+                canGoRight ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/20"
               }`}
               disabled={!canGoRight}
             >
@@ -707,7 +707,7 @@ export default function ManageTeamsPage() {
           </div>
 
           {/* Bench */}
-          <div className="bg-gray-50 border-t border-gray-200 px-3 py-2 space-y-1.5">
+          <div className="bg-muted/30 border-t border-border px-3 py-2 space-y-1.5">
             {getOtherTeams().map((teamLetter) => {
               const team = getTeam(teamLetter)
               const teamName = getHighestEloPlayerName(team, allPlayers) || teamLetter

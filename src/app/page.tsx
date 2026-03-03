@@ -139,27 +139,30 @@ export default function Home() {
       </header>
 
       {/* Main content — fills remaining height */}
-      <div className="flex-1 overflow-hidden flex flex-col p-2 sm:p-4 pb-14 sm:pb-4">
-        <div className="flex-1 overflow-hidden w-fit mx-auto flex flex-col gap-2">
-          {/* Scoreboard */}
-          <main className="flex-1 overflow-hidden">
-            {loading ? (
-              <div className="flex justify-center items-center h-full">
-                <div className="text-muted-foreground">Loading scoreboard...</div>
-              </div>
-            ) : error ? (
-              <div className="flex justify-center items-center h-full">
-                <div className="text-red-600">Error: {error.message}</div>
-              </div>
-            ) : (
-              <ScoreboardTable data={scoreboard} />
-            )}
-          </main>
+      <div className="flex-1 overflow-hidden flex flex-col sm:flex-row gap-4 p-2 sm:p-4 pb-14 sm:pb-4">
+        {/* Scoreboard — full width mobile, 2/3 desktop */}
+        <main className="flex-1 sm:flex-[2] overflow-hidden">
+          {loading ? (
+            <div className="flex justify-center items-center h-full">
+              <div className="text-muted-foreground">Loading scoreboard...</div>
+            </div>
+          ) : error ? (
+            <div className="flex justify-center items-center h-full">
+              <div className="text-red-600">Error: {error.message}</div>
+            </div>
+          ) : (
+            <ScoreboardTable data={scoreboard} />
+          )}
+        </main>
 
-          {/* Admin Section — desktop only */}
-          <div className="hidden sm:flex flex-col gap-2 w-full shrink-0">
+        {/* Admin Sidebar — hidden mobile (uses footer), 1/3 desktop */}
+        <aside className="hidden sm:flex flex-col sm:flex-[1] shrink-0">
+          <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+              {isAuthenticated ? "Admin" : "Game Master"}
+            </p>
             {!isAuthenticated ? (
-              <div className="flex flex-col gap-2 w-full">
+              <>
                 <Input
                   type="password"
                   placeholder="Enter admin password"
@@ -174,7 +177,7 @@ export default function Home() {
                   {isVerifying ? "Verifying..." : "Unlock"}
                 </Button>
                 {authError && <p className="text-sm text-red-600">{authError}</p>}
-              </div>
+              </>
             ) : (
               <>
                 <Link href="/admin/players/add">
@@ -210,7 +213,7 @@ export default function Home() {
               </>
             )}
           </div>
-        </div>
+        </aside>
       </div>
 
       {/* Fixed Footer — mobile only */}
