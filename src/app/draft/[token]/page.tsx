@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, use } from "react"
 import { CheckCircle, Clock, Trophy, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-import { PICK_ORDER, TOTAL_PICKS } from "@/lib/draft-utils"
+import { generatePickOrder, getTotalPicks } from "@/lib/draft-utils"
 
 const CAPTAIN_COLORS = [
   { bg: "bg-blue-500", light: "bg-blue-100", text: "text-blue-700", border: "border-blue-300", label: "Team Blue" },
@@ -221,11 +221,15 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
   const pickedSet = new Set(picks)
   const captainPlayerSet = new Set(captainPlayerIds.filter((id): id is number => id !== null))
 
+  // Calculate dynamic pick order based on player count
+  const totalPicks = getTotalPicks(players.length)
+  const pickOrder = generatePickOrder(totalPicks)
+
   // Build teams: captains first, then draft picks
   const teams: number[][] = [[], [], []]
   captainPlayerIds.forEach((pid, i) => { if (pid) teams[i].push(pid) })
   for (let i = 0; i < picks.length; i++) {
-    teams[PICK_ORDER[i]].push(picks[i])
+    teams[pickOrder[i]].push(picks[i])
   }
 
   const getPlayerById = (id: number) => players.find((p) => p.id === id)
@@ -251,7 +255,7 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
                 <CheckCircle className="w-4 h-4" /> Complete
               </span>
             ) : (
-              <span className="text-sm text-gray-500">Pick {currentPickIndex + 1} / {TOTAL_PICKS}</span>
+              <span className="text-sm text-gray-500">Pick {currentPickIndex + 1} / {totalPicks}</span>
             )}
           </div>
         </div>
@@ -293,7 +297,7 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
             const isMe = player.id === myCaptainPlayerId
             const isPicked = pickedSet.has(player.id)
             const pickNumber = picks.indexOf(player.id)
-            const pickedByCaptain = pickNumber >= 0 ? PICK_ORDER[pickNumber] : null
+            const pickedByCaptain = pickNumber >= 0 ? pickOrder[pickNumber] : null
             const isJustPicked = justPicked === player.id
             const canPick = isMyTurn && !isPicked && !isCaptainPlayer && !picking
 
@@ -408,7 +412,7 @@ export default function DraftPage({ params }: { params: Promise<{ token: string 
             </h2>
             <div className="space-y-1">
               {picks.map((pid, i) => {
-                const cap = PICK_ORDER[i]
+                const cap = pickOrder[i]
                 const player = getPlayerById(pid)
                 return (
                   <div key={i} className="flex items-center gap-2 text-sm">

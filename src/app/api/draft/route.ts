@@ -4,16 +4,16 @@ import { randomUUID } from "crypto";
 
 /**
  * POST /api/draft
- * Creates a new draft session with exactly 15 selected player IDs.
+ * Creates a new draft session with selected player IDs (minimum 6 players).
  * Sorts players by ELO descending and generates 3 captain tokens.
  */
 export async function POST(request: Request) {
   try {
     const { playerIds } = await request.json();
 
-    if (!Array.isArray(playerIds) || playerIds.length !== 15) {
+    if (!Array.isArray(playerIds) || playerIds.length < 6) {
       return NextResponse.json(
-        { error: "Exactly 15 player IDs required" },
+        { error: "At least 6 player IDs required" },
         { status: 400 }
       );
     }
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       orderBy: { elo: "desc" },
     });
 
-    if (players.length !== 15) {
+    if (players.length !== playerIds.length) {
       return NextResponse.json(
         { error: "One or more player IDs not found" },
         { status: 400 }

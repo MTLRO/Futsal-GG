@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
-import { PICK_ORDER, TOTAL_PICKS } from "@/lib/draft-utils";
+import { generatePickOrder, getTotalPicks } from "@/lib/draft-utils";
 
 function getCaptainIndex(session: {
   captain1Token: string;
@@ -39,7 +39,7 @@ export async function GET(
 
     const captainIndex = getCaptainIndex(session, token);
 
-    // Fetch all 15 players
+    // Fetch all players
     const players = await prisma.player.findMany({
       where: { id: { in: session.playerIds } },
       select: { id: true, name: true, lastName: true, elo: true },
@@ -50,9 +50,11 @@ export async function GET(
       players.find((p) => p.id === id)!
     );
 
+    const totalPicks = getTotalPicks(session.playerIds.length);
+    const pickOrder = generatePickOrder(totalPicks);
     const currentPickIndex = session.picks.length;
     const isComplete = session.status === "COMPLETED";
-    const currentCaptain = isComplete ? null : PICK_ORDER[currentPickIndex];
+    const currentCaptain = isComplete ? null : pickOrder[currentPickIndex];
 
     return NextResponse.json({
       captainIndex,
@@ -170,12 +172,14 @@ export async function POST(
 
     const captainIndex = getCaptainIndex(session, token);
     const currentPickIndex = session.picks.length;
+    const totalPicks = getTotalPicks(session.playerIds.length);
+    const pickOrder = generatePickOrder(totalPicks);
 
-    if (currentPickIndex >= TOTAL_PICKS) {
+    if (currentPickIndex >= totalPicks) {
       return NextResponse.json({ error: "All picks have been made" }, { status: 400 });
     }
 
-    if (PICK_ORDER[currentPickIndex] !== captainIndex) {
+    if (pickOrder[currentPickIndex] !== captainIndex) {
       return NextResponse.json({ error: "Not your turn to pick" }, { status: 403 });
     }
 
@@ -194,15 +198,15 @@ export async function POST(
     }
 
     const newPicks = [...session.picks, playerId];
-    const isComplete = newPicks.length === TOTAL_PICKS;
+    const isComplete = newPicks.length === totalPicks;
 
     if (isComplete) {
       const teamA: number[] = [session.captain1PlayerId];
       const teamB: number[] = [session.captain2PlayerId];
       const teamC: number[] = [session.captain3PlayerId];
 
-      for (let i = 0; i < TOTAL_PICKS; i++) {
-        const cap = PICK_ORDER[i];
+      for (let i = 0; i < totalPicks; i++) {
+        const cap = pickOrder[i];
         if (cap === 0) teamA.push(newPicks[i]);
         else if (cap === 1) teamB.push(newPicks[i]);
         else teamC.push(newPicks[i]);
@@ -239,7 +243,7 @@ export async function POST(
       picks: updated.picks,
       status: updated.status,
       currentPickIndex: updated.picks.length,
-      currentCaptain: isComplete ? null : PICK_ORDER[updated.picks.length],
+      currentCaptain: isComplete ? null : pickOrder[updated.picks.length],
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
