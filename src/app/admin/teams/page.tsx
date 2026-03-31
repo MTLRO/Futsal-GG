@@ -125,11 +125,11 @@ function SelectPlayersModal({
           <DialogTitle>Select Players</DialogTitle>
           <p className="text-sm text-gray-500 mt-1">
             Who is playing today?{" "}
-            <span className={`font-semibold ${selected.size === 15 ? "text-green-600" : "text-gray-700"}`}>
+            <span className={`font-semibold ${selected.size >= 6 ? "text-green-600" : "text-gray-700"}`}>
               {selected.size} selected
             </span>
-            {selected.size !== 15 && (
-              <span className="text-gray-400"> · need 15 to enable Draft</span>
+            {selected.size < 6 && (
+              <span className="text-gray-400"> · need at least 6 to enable Draft</span>
             )}
           </p>
         </DialogHeader>
@@ -427,7 +427,7 @@ export default function ManageTeamsPage() {
 
   // ── Draft ─────────────────────────────────────────────────────────────────
   const handleDraft = useCallback(async () => {
-    if (selectedPlayerIds.length !== 15 || isCreatingDraft) return
+    if (selectedPlayerIds.length < 6 || isCreatingDraft) return
     setIsCreatingDraft(true)
     try {
       const res = await fetch("/api/draft", {
@@ -579,7 +579,7 @@ export default function ManageTeamsPage() {
   const currentTeamIndex = teams.indexOf(activeTeam)
   const canGoLeft = currentTeamIndex > 0
   const canGoRight = currentTeamIndex < teams.length - 1
-  const draftReady = selectedPlayerIds.length === 15
+  const draftReady = selectedPlayerIds.length >= 6
 
   const pendingPlayer = pendingPlayerId ? getPlayerById(pendingPlayerId, allPlayers) : null
 
@@ -624,7 +624,7 @@ export default function ManageTeamsPage() {
               onClick={handleDraft}
               disabled={!draftReady || isCreatingDraft}
               className="flex items-center gap-1"
-              title={!draftReady ? "Select exactly 15 players to enable Draft" : ""}
+              title={!draftReady ? "Select at least 6 players to enable Draft" : ""}
             >
               <Shuffle className="w-3.5 h-3.5" />
               {isCreatingDraft ? "..." : "Draft"}
